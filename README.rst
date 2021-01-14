@@ -12,6 +12,7 @@ If you have questions or issues with the package, please contact Jessica Lu at [
 Usage:
 -----
 To use this package, open a terminal and navigate to the desired path. Clone the repository:
+
 ```
 git clone https://github.com/jluastro/paarti.git
 ```
