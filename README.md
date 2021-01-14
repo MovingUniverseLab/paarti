@@ -8,6 +8,7 @@ PAARTI is a Python package used to process, analyze, and visualize Point Spread 
 - Jessica R. Lu
 - Emily Ramey
 - Sanchit Sabhlok
+- Sean Terry
 - Paolo Turri
 
 If you have questions or issues with the package, please contact Jessica Lu at [jlu.astro@berkeley.edu](mailto:jlu.astro@berkeley.edu)
