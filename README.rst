@@ -5,6 +5,32 @@ PSFs with AO for Astronomical Research, Testing, and Instrumentation
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
+**PAARTI** is a Python package used to process, analyze, and visualize Point Spread Functions in Adaptive Optics.
+
+If you have questions or issues with the package, please contact Jessica Lu at [jlu.astro@berkeley.edu](mailto:jlu.astro@berkeley.edu)
+
+Usage:
+-----
+To use this package, open a terminal and navigate to the desired path. Clone the repository:
+```
+git clone https://github.com/jluastro/paarti.git
+```
+    
+and add the folder to your Python path by adding this line to your ~/.bashrc or ~/.bash_profile:
+
+```
+export PYTHONPATH="${PYTHONPATH}:/path_to_folder/paarti"
+```
+
+Developers:
+-----------
+- Matthew Freeman
+- Abhimat Gautam
+- Jessica R. Lu
+- Emily Ramey
+- Sanchit Sabhlok
+- Sean Terry
+- Paolo Turri
 
 License
 -------
