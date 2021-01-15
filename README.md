@@ -19,6 +19,11 @@ and add the folder to your Python path by adding this line to your ~/.bashrc or 
 export PYTHONPATH="${PYTHONPATH}:/path_to_folder/paarti"
 ```
 
+Dependencies:
+------------
+- [Astropy](https://www.astropy.org/)
+- [photutils](https://photutils.readthedocs.io/en/stable/index.html)
+
 Developers:
 -----------
 - Matthew Freeman
