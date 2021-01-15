@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+#   Originally written by Tom Murphy
+#   Original source code at https://tmurphy.physics.ucsd.edu/astr597/exercises/speckle.html
+
 from math import *
 import numpy
 import wavefront
