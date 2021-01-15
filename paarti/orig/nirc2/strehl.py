@@ -1,3 +1,9 @@
+### strehl.py: Calculates the Strehl Ratio of a PSF grid
+### Authors: Jessica Lu
+### Date: ??
+### Date(s) edited:
+    ### 01/14/21 - Emily Ramey
+
 import numpy as np
 import pylab as plt
 from astropy.io import fits
@@ -10,6 +16,8 @@ from nirc2 import instruments
 import scipy, scipy.misc, scipy.ndimage
 import math
 import pdb
+
+import paarti
 
 def calc_strehl(file_list, out_file, apersize=0.3, instrument=instruments.default_inst):
     """
