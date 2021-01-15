@@ -1,31 +1,14 @@
-"""Perform some metrics on PSF data from MAOS/AIROPA/OOMAO."""
-
-
 from os import path
-from astropy.io import fits
 import numpy as np
 from paarti import psfs
 
 
-
-def psf_metrics(dir_label,img)
-
-    #MAOS PSF
-    maos[] = psfs.MAOS_PSF_stack()
-
-
-    #AIROPA PSF
-    airopa[] = psfs.AIROPA_PSF_stack()
+#AIROPA PSF
+psf_in = psfs.AIROPA_PSF_stack('c1043_psf_grid.fits', 'c1043_grid_pos.fits',
+						directory='/u/skterry/work/AIROPA/sean_tests/POOR-run/fit/variable/',
+						isgrid=True)
 
 
-    #OOMAO PSF
-    oomao[] = psfs.OOMAO_PSF_stack()
-
-
-# Data parameters
-#dir_psf = '../data/'
-#data_psf = '*_MAOS_psf_grid.fits'
-#data_grid = '*_MAOS_grid_pos.fits'
 
 # Load data
 #hdul = fits.open(path.join(dir_psf, data_psf))
