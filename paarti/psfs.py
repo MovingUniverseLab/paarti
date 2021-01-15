@@ -1,5 +1,6 @@
 import numpy as np
 import pylab as plt
+from astropy.io import fits
 
 from astropy.io import fits
 
@@ -109,10 +110,40 @@ class AIROPA_PSF_stack(PSF_stack):
 
 
 class OOMAO_PSF_stack(PSF_stack):
-    def __init__(self):
+
+    def __init__(self, psf_strip_file, directory = './', isgrid=False):
+        """
+        Load a grid of OOMAO simulated PSFS
+
+        Inputs
+        ------
+        psf_grid_file : string
+        The name of the FITS file
+
+        directory : string
+        The directory containing the FITS file
+
+        Usage
+        -----
+
+
+        """
         super().__init__(self)
 
-        # Ohter MAOS specific stuff.
+        # Other OOMAO specific stuff.
+        with fits.open(directory + psf_strip_file) as psfFITS:        
+            header = psfFITS[0].header
+            data = psfFITS[0].data
+    
+        psf_y_size = data.shape[0]
+        psf_x_size = psf_y_size
+        n_psfs = int(data.shape[1]/psf_y_size)
+        grid_size = int(np.sqrt(n_psfs))
+        for i in range(n_psfs): 
+            psfs[i,:,:] = data[:,i*psf_size:(i+1)*psf_size]
+            pos[i,1] = i//grid_size         #x location of psf
+            pos[i,0] = i%grid_size          #y location of psf
 
-    
-    
+        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=isgrid)
+   
+        return  
