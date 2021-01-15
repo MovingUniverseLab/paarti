@@ -7,7 +7,7 @@ class PSF_stack(object):
     This is the general object that should be sub-classed for more
     package specific features or for loading from their files.
     """
-    def __init__(self, psfs, pos, pixel_scale, wavelength, bandpass, telescope):
+    def __init__(self, psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=False):
         """
         Create a PSF stack object for easily carrying around information needed
         to analyze and visualize a stack of PSFs.
@@ -58,32 +58,59 @@ class MAOS_PSF_stack(PSF_stack):
     
     
 class AIROPA_PSF_stack(PSF_stack):
-    def __init__(self, directory = './',
-                 psf_grid_file = 'psf_grid.fits',
-                 grid_pos_file = 'grid_pos.fits'):
-        
-        super().__init__(self)
+    def __init__(self, psf_grid_file, grid_pos_file, directory = './', isgrid=False):
+        """
+        Load up a grid of AIROPA PSFs.
+
+        Inputs
+        ------
+        psf_grid_file : string
+            The name of the file that contains the grid of AIROPA PSFs.
+            An example is 'myimg_psf_grid.fits' output from AIROPA.
+        grid_pos_file : string
+            The name of the file that contains the sky positions of each
+            of the AIROPA PSFs. An example is 'myimg_grid_pos.fits' from AIROPA.
+
+        Optional Inputs
+        ---------------
+        directory : string
+            The name of the directory to search for the files.
+        isgrid : bool
+            Set to true if it is a grid. Useful for plotting. 
+
+        Usage
+        ------
+        mypsfs1 = psfs.AIROPA_PSF_stack('myimg_psf_grid.fits', 'myimg_grid_pos.fits', directory='./)
+        mygrid = psfs.AIROPA_PSF_stack('myimg_psf_grid.fits', 'myimg_grid_pos.fits', isgrid=True)
+        """
         
         # Load in grid of PSFs from FITS file
         hdu_psf_grid = fits.open(directory + psf_grid_file)
-        self.psfs = hdu_psf_grid[0].data
+        psfs = hdu_psf_grid[0].data
         
         # Load in grid positions from FITS file
         hdu_grid_pos = fits.open(directory + grid_pos_file)
-        self.pos = hdu_grid_pos[0].data
+        pos = hdu_grid_pos[0].data
         
         # Reading in metadata (this stuff might only work for Keck NIRC2 data?)
-        self.wavelength = hdu_psf_grid[0].header['EFFWAVE']
+        wavelength = hdu_psf_grid[0].header['EFFWAVE']
         
         max_wavelength = hdu_psf_grid[0].header['MAXWAVE']
         min_wavelength = hdu_psf_grid[0].header['MINWAVE']
-        self.bandpass = max_wavelength - min_wavelength
+        bandpass = max_wavelength - min_wavelength
         
-        self.telescope = hdu_psf_grid[0].header['TELESCOP']
+        telescope = hdu_psf_grid[0].header['TELESCOP']
         
         # Close all HDUs
         hdu_psf_grid.close()
         hdu_grid_pos.close()
+
+        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=isgrid)
+
+        # Any other AIROPA specific stuff to load up here?
+        self.input_dir = directory
+        self.file_psf_grid = psf_grid_file
+        self.file_gird_pos = grid_pos_file
         
         return
 
