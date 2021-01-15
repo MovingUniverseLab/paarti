@@ -118,12 +118,17 @@ class AIROPA_PSF_stack(PSF_stack):
 
 class OOMAO_PSF_stack(PSF_stack):
 
-    def __init__(self):
+    def __init__(self, psf_strip_file, directory = './', isgrid=False):
         """
-        
+        Load a grid of OOMAO simulated PSFS
+
         Inputs
         ------
+        psf_grid_file : string
+        The name of the FITS file
 
+        directory : string
+        The directory containing the FITS file
 
         Usage
         -----
@@ -133,7 +138,7 @@ class OOMAO_PSF_stack(PSF_stack):
         super().__init__(self)
 
         # Other OOMAO specific stuff.
-        with fits.open(directory + psf_grid_file) as psfFITS:        
+        with fits.open(directory + psf_strip_file) as psfFITS:        
             header = psfFITS[0].header
             data = psfFITS[0].data
     
@@ -143,8 +148,8 @@ class OOMAO_PSF_stack(PSF_stack):
         grid_size = int(np.sqrt(n_psfs))
         for i in range(n_psfs): 
             psfs[i,:,:] = data[:,i*psf_size:(i+1)*psf_size]
-            pos[i,0] = i//grid_size         #x location of psf
-            pos[i,1] = i%grid_size          #y location of psf
+            pos[i,1] = i//grid_size         #x location of psf
+            pos[i,0] = i%grid_size          #y location of psf
 
         super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=isgrid)
    
