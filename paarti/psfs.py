@@ -2,8 +2,6 @@ import numpy as np
 import pylab as plt
 from astropy.io import fits
 
-from astropy.io import fits
-
 class PSF_stack(object):
     """
     An object for a stack of PSFs (often a grid). 
