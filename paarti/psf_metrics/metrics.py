@@ -7,27 +7,33 @@ import numpy as np
 from paarti import psfs
 
 
+
+def psf_metrics(dir_label,img)
+
+    #MAOS PSF
+    maos[] = psfs.MAOS_PSF_stack()
+
+
+    #AIROPA PSF
+    airopa[] = psfs.AIROPA_PSF_stack()
+
+
+    #OOMAO PSF
+    oomao[] = psfs.OOMAO_PSF_stack()
+
+
 # Data parameters
-dir_psf = '../data/'
-data_psf = 'c1049_psf_grid.fits'
-data_grid = 'c1049_grid_pos.fits'
+#dir_psf = '../data/'
+#data_psf = '*_MAOS_psf_grid.fits'
+#data_grid = '*_MAOS_grid_pos.fits'
 
 # Load data
-print('Program started')
-hdul = fits.open(path.join(dir_psf, data_psf))
-psf_data = hdul[0].data
-hdul.close()
-hdul = fits.open(path.join(dir_psf, data_grid))
-grid_data = hdul[0].data
-hdul.close()
-side_psf = psf_data.shape[1]
-n_psfs = psf_data.shape[0]
-side_psfs = int(np.sqrt(n_psfs))
-
-# Process data
-xs = grid_data[:, 0]
-ys = grid_data[:, 1]
-min_x = np.min(xs)
-max_x = np.max(xs)
-min_y = np.min(ys)
-max_y = np.max(ys)
+#hdul = fits.open(path.join(dir_psf, data_psf))
+#psf_data = hdul[0].data
+#hdul.close()
+#hdul = fits.open(path.join(dir_psf, data_grid))
+#grid_data = hdul[0].data
+#hdul.close()
+#side_psf = psf_data.shape[1]
+#n_psfs = psf_data.shape[0]
+#side_psfs = int(np.sqrt(n_psfs))
