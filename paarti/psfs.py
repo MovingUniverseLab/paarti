@@ -1,6 +1,8 @@
 import numpy as np
 import pylab as plt
 
+from astropy.io import fits
+
 class PSF_stack(object):
     """
     An object for a stack of PSFs (often a grid). 
@@ -58,7 +60,8 @@ class MAOS_PSF_stack(PSF_stack):
     
     
 class AIROPA_PSF_stack(PSF_stack):
-    def __init__(self, psf_grid_file, grid_pos_file, directory = './', isgrid=False):
+    def __init__(self, psf_grid_file, grid_pos_file, directory = './',
+                 pixel_scale=10, wavelength=10, bandpass=10, telescope='KeckII:NIRC2', isgrid=False):
         """
         Load up a grid of AIROPA PSFs.
 
@@ -87,24 +90,14 @@ class AIROPA_PSF_stack(PSF_stack):
         # Load in grid of PSFs from FITS file
         hdu_psf_grid = fits.open(directory + psf_grid_file)
         psfs = hdu_psf_grid[0].data
+        hdu_psf_grid.close()
         
         # Load in grid positions from FITS file
         hdu_grid_pos = fits.open(directory + grid_pos_file)
         pos = hdu_grid_pos[0].data
-        
-        # Reading in metadata (this stuff might only work for Keck NIRC2 data?)
-        wavelength = hdu_psf_grid[0].header['EFFWAVE']
-        
-        max_wavelength = hdu_psf_grid[0].header['MAXWAVE']
-        min_wavelength = hdu_psf_grid[0].header['MINWAVE']
-        bandpass = max_wavelength - min_wavelength
-        
-        telescope = hdu_psf_grid[0].header['TELESCOP']
-        
-        # Close all HDUs
-        hdu_psf_grid.close()
         hdu_grid_pos.close()
-
+        
+        # Call PSF_stack initializer
         super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=isgrid)
 
         # Any other AIROPA specific stuff to load up here?
