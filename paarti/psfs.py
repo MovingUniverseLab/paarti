@@ -1,6 +1,7 @@
 import numpy as np
 import pylab as plt
 from astropy.io import fits
+import os
 
 class PSF_stack(object):
     """
@@ -51,13 +52,56 @@ class PSF_stack(object):
 
 
 class MAOS_PSF_stack(PSF_stack):
-    def __init__(self):
-        super().__init__(self)
+    def __init__(self,directory = './',bandpass=10,telescope='KECK1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+        """
+        Load a grid of MAOS simulated PSFs
 
-        # Ohter MAOS specific stuff.
+        Inputs
+        ------
+        directory : string
+            A directory containing the MAOS output FITS files.
+        LGSpos : numpy array
+            An n by 2 array containing the x,y locations of each LGS
+        NGSpos : numpy array
+            An n by 2 array containing the x,y locations of each NGS
+        Usage
+        -----
 
+        """
+        filelist = os.listdir(directory)
+        fits_files = fnmatch.filter(filelist,'evlpsfcl_1_x*_y*.fits')           #could just be *.fits?
+        n_psfs = len(fits_files)
+        pos = np.empty([n_psfs,2])
+
+        first_file = True
+        for i, FITSfilename in enumerate(fits_files):
+            with fits.open(directory + FITSfilename) as psfFITS:
+                header = psfFITS[0].header
+                data = psfFITS[0].data          #shape is (y,x). Fastest changing axis (x) is printed last
+
+            if first_file:                                              #When reading the first FITS file, initialise the arrays and read some parameters.
+                psf_x_size = data.shape[1]
+                psf_y_size = data.shape[0]
+                psfs = np.empty([n_psfs,psf_y_size,psf_x_size])
+                pixel_scale = header['dp']
+                wavelength = header['wvl']*1E9                         
+                first_file = False
+
+            psfs[i,:,:] = data
+            # pos[i,::-1] = [float(j) for j in FITSfilename[12:-5].split('_y')]               #read the x and y position into pos, in reversed order
+            pos[i,0] = header['theta'].imag
+            pos[i,1] = header['theta'].real
+
+
+        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid)
+
+        # Other MAOS specific stuff.
+        self.NGSpos=NGSpos
+        self.LGSpos=LGSpos
+        #need a parameter to save the strehl information in some way. MAOS psfs are scaled so that the central pixel = strehl
     
-    
+        return
+
 class AIROPA_PSF_stack(PSF_stack):
     def __init__(self, psf_grid_file, grid_pos_file, directory = './',
                  pixel_scale=10, wavelength=10, bandpass=10, telescope='KeckII:NIRC2', isgrid=False):
@@ -109,25 +153,25 @@ class AIROPA_PSF_stack(PSF_stack):
 
 class OOMAO_PSF_stack(PSF_stack):
 
-    def __init__(self, psf_strip_file, directory = './', isgrid=False):
+    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=, bandpass=, telescope = 'Keck1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
         """
         Load a grid of OOMAO simulated PSFS
 
         Inputs
         ------
-        psf_grid_file : string
-        The name of the FITS file
-
+        psf_strip_file : string
+            The name of the FITS file, containing a strip of PSFs stitched together.
         directory : string
-        The directory containing the FITS file
-
+            The directory containing the FITS file
+        LGSpos : numpy array
+            An n by 2 array containing the x,y locations of each LGS
+        NGSpos : numpy array
+            An n by 2 array containing the x,y locations of each NGS
         Usage
         -----
 
 
         """
-        super().__init__(self)
-
         # Other OOMAO specific stuff.
         with fits.open(directory + psf_strip_file) as psfFITS:        
             header = psfFITS[0].header
@@ -137,11 +181,16 @@ class OOMAO_PSF_stack(PSF_stack):
         psf_x_size = psf_y_size
         n_psfs = int(data.shape[1]/psf_y_size)
         grid_size = int(np.sqrt(n_psfs))
+        psfs = np.empty([n_psfs,psf_y_size,psf_x_size])
+        pos = np.empty([])
         for i in range(n_psfs): 
             psfs[i,:,:] = data[:,i*psf_size:(i+1)*psf_size]
             pos[i,1] = i//grid_size         #x location of psf
             pos[i,0] = i%grid_size          #y location of psf
 
-        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=isgrid)
-   
+        
+        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid)
+        self.NGSpos=NGSpos
+        self.LGSpos=LGSpos
+
         return  
