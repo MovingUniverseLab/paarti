@@ -153,7 +153,7 @@ class AIROPA_PSF_stack(PSF_stack):
 
 class OOMAO_PSF_stack(PSF_stack):
 
-    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=, bandpass=, telescope = 'Keck1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=, bandpass=, telescope = 'Keck1',isgrid=True, psf_spacing = 2.0, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
         """
         Load a grid of OOMAO simulated PSFS
 
@@ -163,6 +163,8 @@ class OOMAO_PSF_stack(PSF_stack):
             The name of the FITS file, containing a strip of PSFs stitched together.
         directory : string
             The directory containing the FITS file
+        psf_spacing : float
+            The separation between the PSFs in the regular grid.
         LGSpos : numpy array
             An n by 2 array containing the x,y locations of each LGS
         NGSpos : numpy array
@@ -185,8 +187,8 @@ class OOMAO_PSF_stack(PSF_stack):
         pos = np.empty([])
         for i in range(n_psfs): 
             psfs[i,:,:] = data[:,i*psf_size:(i+1)*psf_size]
-            pos[i,1] = i//grid_size         #x location of psf
-            pos[i,0] = i%grid_size          #y location of psf
+            pos[i,1] = (i//grid_size - grid_size/2 +0.5)*psf_spacing        #x location of psf relative to centre
+            pos[i,0] = (i%grid_size - grid_size/2 +0.5)*psf_spacing        #y location of psf relative to centre
 
         
         super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid)
