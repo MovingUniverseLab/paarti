@@ -187,8 +187,8 @@ class OOMAO_PSF_stack(PSF_stack):
         pos = np.empty([])
         for i in range(n_psfs): 
             psfs[i,:,:] = data[:,i*psf_size:(i+1)*psf_size]
-            pos[i,1] = (i//grid_size - grid_size/2 +0.5)*psf_spacing        #x location of psf relative to centre
-            pos[i,0] = (i%grid_size - grid_size/2 +0.5)*psf_spacing        #y location of psf relative to centre
+            pos[i,1] = (i//grid_size - (grid_size-1)/2)*psf_spacing        #x location of psf relative to centre
+            pos[i,0] = (i%grid_size - (grid_size-1)/2)*psf_spacing        #y location of psf relative to centre
 
         
         super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid)
