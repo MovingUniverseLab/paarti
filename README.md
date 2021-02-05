@@ -1,4 +1,4 @@
-PSFs with AO for Astronomical Research, Testing, and Instrumentation
+PAARTI: **P**SFs with **A**O for **A**stronomical **R**esearch, **T**esting, and **I**nstrumentation
 --------------------------------------------------------------------
 
 **PAARTI** is a Python package used to process, analyze, and visualize Point Spread Functions in Adaptive Optics.
@@ -32,7 +32,7 @@ Developers:
 License
 -------
 
-This project is Copyright (c) J.R. Lu and licensed under
+This project is Copyright (c) by J.R. Lu and licensed under
 the terms of the GNU GPL v3+ license. This package is based upon
 the `Astropy package template <https://github.com/astropy/package-template>`_
 which is licensed under the BSD 3-clause license. See the licenses folder for
@@ -42,7 +42,7 @@ more information.
 Contributing
 ------------
 
-We love contributions! paarti is open source,
+We love contributions! PAARTI is open source,
 built on open source, and we'd love to have you hang out in our community.
 
 **Imposter syndrome disclaimer**: We want your help. No, really.
@@ -67,6 +67,6 @@ the errors and assumptions that seasoned contributors have glossed over.
 
 Note: This disclaimer was originally written by
 `Adrienne Lowe <https://github.com/adriennefriend>`_ for a
-`PyCon talk <https://www.youtube.com/watch?v=6Uj746j9Heo>`_, and was adapted by
-paarti based on its use in the README file for the
+`PyCon talk <https://www.youtube.com/watch?v=6Uj746j9Heo>`_ and was adapted for
+PAARTI based on its use in the README file for the
 `MetPy project <https://github.com/Unidata/MetPy>`_.
