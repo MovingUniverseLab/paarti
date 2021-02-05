@@ -104,7 +104,8 @@ class MAOS_PSF_stack(PSF_stack):
 
 class AIROPA_PSF_stack(PSF_stack):
     def __init__(self, psf_grid_file, grid_pos_file, directory = './',
-                 pixel_scale=10, wavelength=10, bandpass=10, telescope='KeckII:NIRC2', isgrid=False):
+                 pixel_scale=10, wavelength=10, bandpass=10,
+                 telescope='KeckII:NIRC2', isgrid=False):
         """
         Load up a grid of AIROPA PSFs.
 
@@ -141,19 +142,25 @@ class AIROPA_PSF_stack(PSF_stack):
         hdu_grid_pos.close()
         
         # Call PSF_stack initializer
-        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=isgrid)
+        super().__init__(psfs, pos, pixel_scale,
+                         wavelength, bandpass, telescope,
+                         isgrid=isgrid)
 
         # Any other AIROPA specific stuff to load up here?
         self.input_dir = directory
         self.file_psf_grid = psf_grid_file
         self.file_gird_pos = grid_pos_file
         
+        self.telescope_diam = 10.0
+        if 'Keck' in self.telescope: 
+            self.telescope_diam = 10.5
+        
         return
 
 
 class OOMAO_PSF_stack(PSF_stack):
 
-    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=, bandpass=, telescope = 'Keck1',isgrid=True, psf_spacing = 2.0, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=10, bandpass=10, telescope = 'Keck1',isgrid=True, psf_spacing = 2.0, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
         """
         Load a grid of OOMAO simulated PSFS
 
