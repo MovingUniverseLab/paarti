@@ -12,7 +12,9 @@ from scipy.spatial import Voronoi, voronoi_plot_2d, KDTree
 def quant_map_vis(plot_quant, plot_x, plot_y,
                   plot_type='Voronoi',
                   plot_quant_label='',
-                  plot_out_file_name='quant_map'):
+                  plot_out_file_name='quant_map',
+                  plot_color_lims=None,
+                  plot_color_cmap='viridis'):
     # Set up Voronoi plot, and bounds
     x_max = np.max(plot_x)
     x_min = np.min(plot_x)
@@ -39,9 +41,18 @@ def quant_map_vis(plot_quant, plot_x, plot_y,
     ax1.set_ylabel(r"y")
     
     # Uniform color bar
-    color_normalizer = mpl.colors.Normalize(vmin=np.min(plot_quant),
-                                            vmax=np.max(plot_quant))
-    color_cmap = plt.get_cmap('plasma')
+    if (plot_color_lims is not None) and (len(plot_color_lims) == 2):
+        color_normalizer = mpl.colors.Normalize(vmin=np.min(plot_color_lims),
+                                                vmax=np.max(plot_color_lims))
+        custom_color_lims = True
+        
+        if plot_color_lims[0] > plot_color_lims[1]:
+            plot_color_cmap = plot_color_cmap + '_r'
+    else:
+        color_normalizer = mpl.colors.Normalize(vmin=np.min(plot_quant),
+                                                vmax=np.max(plot_quant))
+    
+    color_cmap = plt.get_cmap(plot_color_cmap)
     
     # Go through each point
     for point_index in range(len(plot_XYs)):
