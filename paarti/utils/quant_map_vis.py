@@ -34,7 +34,7 @@ def quant_map_vis(plot_quant, plot_x, plot_y,
     vor = Voronoi(vor_plot_XYs)
     
     # Plot filled tessellation
-    fig = plt.figure(figsize=(5, 4))
+    fig = plt.figure(figsize=(4, 3))
     ax1 = fig.add_subplot(1,1,1)
     
     ax1.set_xlabel(r"x")
