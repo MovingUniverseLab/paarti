@@ -37,7 +37,7 @@ def quant_map_vis(plot_quant, plot_x, plot_y,
     #y_range = y_max - y_min
     
     #plot_XYs = np.stack((plot_x, plot_y), axis=-1) #pixel-scale
-    plot_XYs = np.stack((plot_x-512, plot_y-512), axis=-1) #arcsec offset-scale
+    plot_XYs = np.stack((plot_x, plot_y), axis=-1) # plot_x - 512, plot_y - 512 for arcsec offset-scale
     vor_plot_XYs = np.append(plot_XYs, [[x_max + 2.*x_range, y_max + 2.*y_range],
                                         [x_max + 2.*x_range, y_min - 2.*y_range],
                                         [x_min - 2.*x_range, y_max + 2.*y_range],
