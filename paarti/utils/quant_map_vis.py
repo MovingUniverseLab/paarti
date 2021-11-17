@@ -11,7 +11,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.spatial import Voronoi, voronoi_plot_2d, KDTree
 
 def quant_map_vis(plot_quant, plot_x, plot_y,
-                  refstars=None, guidestar,
+                  guidestar,
+                  refstars=None,
                   ttstar=None,
                   plot_type='Voronoi',
                   plot_quant_label='',
@@ -20,24 +21,24 @@ def quant_map_vis(plot_quant, plot_x, plot_y,
                   plot_color_cmap='viridis',
                   plot_mag_map='Wistia'): #default = viridis
     # Set up Voronoi plot, and bounds
-    x_max = np.max(plot_x)
-    x_min = np.min(plot_x)
-    x_range = x_max - x_min
-    
-    y_max = np.max(plot_y)
-    y_min = np.min(plot_y)
-    y_range = y_max - y_min
-
-    #x_max = np.max(plot_x)-512 #Change from pixel-space to arcsec offset-space.
-    #x_min = np.min(plot_x)-512
+    #x_max = np.max(plot_x)
+    #x_min = np.min(plot_x)
     #x_range = x_max - x_min
     
-    #y_max = np.max(plot_y)-512
-    #y_min = np.min(plot_y)-512
+    #y_max = np.max(plot_y)
+    #y_min = np.min(plot_y)
     #y_range = y_max - y_min
+
+    x_max = np.max(plot_x)-512 #Change from pixel-space to arcsec offset-scale.
+    x_min = np.min(plot_x)-512
+    x_range = x_max - x_min
+    
+    y_max = np.max(plot_y)-512
+    y_min = np.min(plot_y)-512
+    y_range = y_max - y_min
     
     #plot_XYs = np.stack((plot_x, plot_y), axis=-1) #pixel-scale
-    plot_XYs = np.stack((plot_x, plot_y), axis=-1) # plot_x - 512, plot_y - 512 for arcsec offset-scale
+    plot_XYs = np.stack((plot_x-512, plot_y-512), axis=-1) # plot_x - 512, plot_y - 512 for arcsec offset-scale.
     vor_plot_XYs = np.append(plot_XYs, [[x_max + 2.*x_range, y_max + 2.*y_range],
                                         [x_max + 2.*x_range, y_min - 2.*y_range],
                                         [x_min - 2.*x_range, y_max + 2.*y_range],
@@ -106,7 +107,6 @@ def quant_map_vis(plot_quant, plot_x, plot_y,
 
     #Plot Guide Star (Optional) # Commented out, GS is always on-axis.
     #plt.scatter(guidestar[0], guidestar[1], zorder=2, s=400, edgecolor='k', linewidth=0.5, color='yellow', marker='*')
-
     if ttstar != None:
         x_vals = (guidestar[0], ttstar[0])
         y_vals = (guidestar[1], ttstar[1])
@@ -114,8 +114,8 @@ def quant_map_vis(plot_quant, plot_x, plot_y,
         plt.plot(x_vals, y_vals, linewidth=4.5, color='pink')
 
     #Plot PSF reference stars (Optional)
-    if refstars != None:
-        psfstars = plt.scatter((refstars[:,3])-512, (refstars[:,4])-512,
+    if refstars.all() != None:
+        psfstars = plt.scatter((refstars[:,3])-512, (refstars[:,4])-512, #subtract -512 from each array for arcsec-offset scale.
             zorder=3, s=350, c=refstars[:,1], edgecolor='k', marker="o", linewidth=2.0,
             cmap=plt.get_cmap(plot_mag_map), vmin=refstars[0,1], vmax=refstars[(len(refstars)-1),1])
 
