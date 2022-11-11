@@ -52,7 +52,7 @@ class PSF_stack(object):
 
 
 class MAOS_PSF_stack(PSF_stack):
-    def __init__(self,directory = './',bandpass=10,telescope='KECK1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+    def __init__(self,directory = './',bandpass=10,telescope='KECK1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0.,-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
         """
         Load a grid of MAOS simulated PSFs
 
