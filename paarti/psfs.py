@@ -2,6 +2,7 @@ import numpy as np
 import pylab as plt
 from astropy.io import fits
 import os
+import fnmatch
 
 class PSF_stack(object):
     """
@@ -52,7 +53,7 @@ class PSF_stack(object):
 
 
 class MAOS_PSF_stack(PSF_stack):
-    def __init__(self,directory = './',bandpass=10,telescope='KECK1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0.,-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+    def __init__(self,directory = './',bandpass=10,telescope='KECK1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0,-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
         """
         Load a grid of MAOS simulated PSFs
 
@@ -160,7 +161,7 @@ class AIROPA_PSF_stack(PSF_stack):
 
 class OOMAO_PSF_stack(PSF_stack):
 
-    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=10, bandpass=10, telescope = 'Keck1',isgrid=True, psf_spacing = 2.0, LGSpos=np.array([[-7.6,0],[0,7.6],[0.-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+    def __init__(self, psf_strip_file, directory = './', pixel_scale=0.02081, wavelength=10, bandpass=10, telescope = 'Keck1',isgrid=True, psf_spacing = 2.0, LGSpos=np.array([[-7.6,0],[0,7.6],[0,-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
         """
         Load a grid of OOMAO simulated PSFS
 
