@@ -1,7 +1,20 @@
+=============
 Documentation
 =============
 
-This is the documentation for paarti.
+This is the documentation for PAARTI, which consists of a the paarti python package
+and some helpful MAOS configuration files for different telescopes. MAOS is an
+adaptive optics simulation package hosted `here <https://github.com/lianqiw/maos>`__.
+Typically, one would run MAOS first to generate some PSFs and then use the 
+paarti python package to analyze those PSFs. 
+
+MAOS Configurations
+===================
+The PAARTI package includes MAOS configuration files for a few different AO systems,
+including those at the Keck observatory. 
+
+paarti Module
+=============
 
 .. toctree::
   :maxdepth: 2
