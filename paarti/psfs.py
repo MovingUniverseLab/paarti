@@ -3,6 +3,7 @@ import pylab as plt
 from astropy.io import fits
 import os
 import fnmatch
+from paarti.psf_metrics import metrics
 
 class PSF_stack(object):
     """
@@ -10,7 +11,8 @@ class PSF_stack(object):
     This is the general object that should be sub-classed for more
     package specific features or for loading from their files.
     """
-    def __init__(self, psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid=False):
+    def __init__(self, psfs, pos, pixel_scale, wavelength,
+                 bandpass, telescope, isgrid=False):
         """
         Create a PSF stack object for easily carrying around information needed
         to analyze and visualize a stack of PSFs.
@@ -20,17 +22,17 @@ class PSF_stack(object):
         psfs : numpy array
             a 3D stack of PSFs with dimensions [N_psfs, psf_Y_size, psf_X_size]
         pos : numpy array
-            a 2D array with the (y, x) sky positions for each PSF with dimensions
-            [N_psfs, psf_Y_size, psf_X_size]
+            a 2D array with the (y, x) sky positions for each PSF.
+            Shape is (N_psfs, 2).
         pixel_scale : float
-            The pixel scale of each PSFs in arcsec / pixel.
+            The pixel scale of each PSF in arcsec / pixel.
         wavelength : float
             The central wavelength of the PSFs in nm.
         bandpass : float
             The wavelength range or bandpass of the PSFs in nm.
         telescope : string
-            The name of the telescope. Ideally, it would be one from the dictionary
-            in paarti.telescopes.tel_names (e.g. 'Keck1').
+            The name of the telescope. Ideally, it would be one from the
+            dictionary in paarti.telescopes.tel_names (e.g. 'Keck1').
 
         Usage
         -----
@@ -53,9 +55,12 @@ class PSF_stack(object):
 
 
 class MAOS_PSF_stack(PSF_stack):
-    def __init__(self,directory = './',bandpass=10,telescope='KECK1',isgrid=True, LGSpos=np.array([[-7.6,0],[0,7.6],[0,-7.6],[7.6,0]]), NGSpos=np.array([[0,5.6]]) ):
+    def __init__(self, directory = './', bandpass=0, telescope='KECK1',
+                 isgrid=True,
+                 LGSpos=np.array([[-7.6,0],[0,7.6],[0,-7.6],[7.6,0]]),
+                 NGSpos=np.array([[0,5.6]]) ):
         """
-        Load a grid of MAOS simulated PSFs
+        Load a grid of MAOS simulated PSFs at the specified bandpass index.
 
         Inputs
         ------
@@ -65,43 +70,55 @@ class MAOS_PSF_stack(PSF_stack):
             An n by 2 array containing the x,y locations of each LGS
         NGSpos : numpy array
             An n by 2 array containing the x,y locations of each NGS
+        
         Usage
         -----
 
         """
         filelist = os.listdir(directory)
-        fits_files = fnmatch.filter(filelist,'evlpsfcl_1_x*_y*.fits')           #could just be *.fits?
+        fits_files = fnmatch.filter(filelist,'evlpsfcl_1_x*_y*.fits')
         n_psfs = len(fits_files)
-        pos = np.empty([n_psfs,2])
+        pos = np.empty([n_psfs, 2])
 
         first_file = True
+        
         for i, FITSfilename in enumerate(fits_files):
             with fits.open(directory + FITSfilename) as psfFITS:
-                header = psfFITS[0].header
-                data = psfFITS[0].data          #shape is (y,x). Fastest changing axis (x) is printed last
-
-            if first_file:                                              #When reading the first FITS file, initialise the arrays and read some parameters.
+                header = psfFITS[bandpass].header
+                data = psfFITS[bandpass].data          
+                # shape is (y,x). Fastest changing axis (x) is printed last
+                
+            # When reading the first FITS file, initialise the arrays
+            # and read some parameters.                
+            if first_file:                                              
                 psf_x_size = data.shape[1]
                 psf_y_size = data.shape[0]
-                psfs = np.empty([n_psfs,psf_y_size,psf_x_size])
+                psfs = np.empty([n_psfs, psf_y_size, psf_x_size])
                 pixel_scale = header['dp']
                 wavelength = header['wvl']*1E9                         
                 first_file = False
 
             psfs[i,:,:] = data
-            # pos[i,::-1] = [float(j) for j in FITSfilename[12:-5].split('_y')]               #read the x and y position into pos, in reversed order
             pos[i,0] = header['theta'].imag
             pos[i,1] = header['theta'].real
 
 
-        super().__init__(psfs, pos, pixel_scale, wavelength, bandpass, telescope, isgrid)
+        super().__init__(psfs, pos, pixel_scale, wavelength,
+                         bandpass, telescope, isgrid)
 
         # Other MAOS specific stuff.
-        self.NGSpos=NGSpos
-        self.LGSpos=LGSpos
-        #need a parameter to save the strehl information in some way. MAOS psfs are scaled so that the central pixel = strehl
-    
+        self.NGSpos = NGSpos
+        self.LGSpos = LGSpos
+        
         return
+
+    def calc_metrics(self, parallel=False):
+        mets = metrics.calc_psf_metrics(self, parallel=parallel)
+
+        self.metrics = mets
+        
+        return
+        
 
 class AIROPA_PSF_stack(PSF_stack):
     def __init__(self, psf_grid_file, grid_pos_file, directory = './',
