@@ -196,6 +196,10 @@ def make_keck_pupil():
     ampl = atlast.get_transmission(temp_wavefront)
     transmittance = ampl**2
 
+    # Transpose the array to get it into the angle=0 convention
+    # of Keck. (see the NCPA maps that must match).
+    transmittance = transmittance.T
+
     plt.figure(2)
     plt.clf()
     plt.imshow(transmittance)

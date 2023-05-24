@@ -11,7 +11,9 @@ paarti python package to analyze those PSFs.
 MAOS Configurations
 ===================
 The PAARTI package includes MAOS configuration files for a few different AO systems,
-including those at the Keck observatory. 
+including those at the Keck observatory. We have provided supplementary documentation
+for MAOS configuration parameters in a 
+`Google Doc <https://docs.google.com/document/d/1_rIU7ttHSZIgGWyOPOsU-dFmtxIsOk-FxezcGy6LKXY/edit?usp=sharing>`__.
 
 paarti Module
 =============
