@@ -113,6 +113,38 @@ class MAOS_PSF_stack(PSF_stack):
         return
 
     def calc_metrics(self, parallel=False):
+        """
+        Calculate metrics on a stack of PSFs.
+
+        Optional Inputs:
+        -------
+        parallel : boolean
+            Set to True for parallel processing. But may not work in
+            Jupyter notebooks. 
+
+        Returns:
+        --------
+        Adds a "metrics" table to the psf_stack object.
+
+        self.metrics : astropy table
+            An astropy table with one row for each PSF. The computed metrics include
+
+            'ee25' - 25% encircled-energy radius in arcsec
+            'ee50' - 50% encircled-energy radius in arcsec
+            'ee80' - 80% encircled-energy radius in arcsec
+            'NEA'  - Noise-equivalent area in arcsec^2 (wrong?)
+            'NEA2' - Noise-equivalent area in arcsec^2 (different calc, right?)
+            'emp_fwhm' - Empirical FWHM in arcsec calculated based on
+                         radius of circle with an area that is equivalent to the
+                         area of all pixels with flux above 0.5 * max flux.
+            'fwhm' - Average FWHM in arcsec from 2D Gaussian fit. 
+            'xfwhm' - X FWHM in arcsec from 2D Gaussian fit. 
+            'yfwhm' - Y FWHM in arcsec from 2D Gaussian fit.
+            'theta' - Angle in degrees to the major axis of the 2D Gaussian.
+            'ellipticity' - Ellipticity of the PSF.
+            'strehl' - Strehl of the PSF, only valid for MAOS-style PSFs.
+        """
+    
         mets = metrics.calc_psf_metrics(self, parallel=parallel)
 
         self.metrics = mets

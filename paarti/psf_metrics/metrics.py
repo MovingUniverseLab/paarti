@@ -2,6 +2,7 @@ import numpy as np
 import math
 import astropy
 import scipy
+import warnings
 
 from astropy.nddata import Cutout2D
 from astropy.modeling import models, fitting
@@ -18,6 +19,36 @@ import multiprocessing as mp
 
 
 def calc_psf_metrics(psf_stack, parallel=False):
+    """
+    Calculate metrics on a stack of PSFs.
+
+    Inputs:
+    -------
+    psf_stack : psfs.PSF_Stack object
+        A PSF stack object that holds the PSFs and the positions on the
+        sky of each PSF, along with plate scale, etc.
+
+    Returns:
+    --------
+    mets : astropy table
+        An astropy table with one row for each PSF. The computed metrics include
+
+        'ee25' - 25% encircled-energy radius in arcsec
+        'ee50' - 50% encircled-energy radius in arcsec
+        'ee80' - 80% encircled-energy radius in arcsec
+        'NEA'  - Noise-equivalent area in arcsec^2 (wrong?)
+        'NEA2' - Noise-equivalent area in arcsec^2 (different calc, right?)
+        'emp_fwhm' - Empirical FWHM in arcsec calculated based on
+                     radius of circle with an area that is equivalent to the
+                     area of all pixels with flux above 0.5 * max flux.
+        'fwhm' - Average FWHM in arcsec from 2D Gaussian fit. 
+        'xfwhm' - X FWHM in arcsec from 2D Gaussian fit. 
+        'yfwhm' - Y FWHM in arcsec from 2D Gaussian fit.
+        'theta' - Angle in degrees to the major axis of the 2D Gaussian.
+        'ellipticity' - Ellipticity of the PSF.
+        'strehl' - Strehl of the PSF, only valid for MAOS-style PSFs.
+    """
+    
     ####
     # Setup for parallel processing.
     ####
@@ -51,7 +82,9 @@ def calc_psf_metrics(psf_stack, parallel=False):
         pool.close()
         pool.join()
 
+    ####
     # Reformat results into lists.
+    ####
     ee25 = np.arange(N_psfs, dtype=float)
     ee50 = np.arange(N_psfs, dtype=float)
     ee80 = np.arange(N_psfs, dtype=float)
@@ -125,8 +158,8 @@ def calc_psf_metrics_single(psf, pixel_scale, oversamp=1, cut_radius=20):
     psf_c = psf[int(coords[1]-cut_radius) : int(coords[1]+cut_radius+1),
                 int(coords[0]-cut_radius) : int(coords[0]+cut_radius+1)]
     if oversamp > 1:
-        psf_co = scipy.ndimage.zoom(psf_cutout, oversamp, order = 1)
-        coords = np.array(psf_cut_osamp.shape) / 2.0
+        psf_co = scipy.ndimage.zoom(psf_c, oversamp, order = 1)
+        coords = np.array(psf_co.shape) / 2.0
         pixel_scale /= oversamp
     else:
         psf_co = psf
@@ -152,7 +185,7 @@ def calc_psf_metrics_single(psf, pixel_scale, oversamp=1, cut_radius=20):
 
     # Normalize the encircled energy by the total. Not quite correct,
     # but close enough.
-    tot_energy = psf.sum() * oversamp**2
+    tot_energy = psf_c.sum() * oversamp**2
     enc_energy /= tot_energy
 
     # Calculate the sum(PSF^2) for NEA.
@@ -177,17 +210,21 @@ def calc_psf_metrics_single(psf, pixel_scale, oversamp=1, cut_radius=20):
     # Fit a Gaussian2D model to get FWHM and ellipticity.
     g2d_model = models.Gaussian2D(1.0, psf_co.shape[0]/2.0, psf_co.shape[1]/2.0,
                                   ee25_rad, ee25_rad, theta=0,
-                                  bounds={'x_stddev':[0, ee80_rad],
-                                          'y_stddev':[0, ee80_rad],
-                                          'amplitude':[0, 2]})
+                                  bounds={'x_stddev':[0.1, ee80_rad],
+                                          'y_stddev':[0.1, ee80_rad],
+                                          'amplitude':[0.001, 2]})
     c2d_model = models.Const2D(0.0)
         
     the_model = g2d_model + c2d_model
     the_fitter = fitting.LevMarLSQFitter()
 
     y2d, x2d = np.mgrid[:psf_co.shape[0], :psf_co.shape[1]]
-    
-    g2d_params = the_fitter(the_model, x2d, y2d, psf)
+
+    warnings.resetwarnings()
+    warnings.filterwarnings('ignore', category=UserWarning, append=True)
+    g2d_params = the_fitter(the_model, x2d, y2d, psf_co)
+    warnings.resetwarnings()
+    warnings.filterwarnings('always', category=UserWarning, append=True)
 
     # Save the FWHM and angle. In oversamp pixels.
     x_fwhm = g2d_params.x_stddev_0.value * stats.gaussian_sigma_to_fwhm
