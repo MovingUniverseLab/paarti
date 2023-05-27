@@ -57,6 +57,11 @@ def prep_keck_ncpa(rms_wfe, seg_piston_file='Keck_Segment_Pistons_2023_04_29.csv
     rms_wfe : float
         Desired RMS WFE in nm. The input segment pistons will just be rescaled
         to yield the desired RMS WFE.
+
+    Optional Inputs
+    ---------------
+    seg_piston_file : str
+        Name of the CSV file containing the piston for each primary mirror segment.
     """
     inner_ring = 1
     outer_ring = 3
