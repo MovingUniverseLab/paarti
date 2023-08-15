@@ -380,19 +380,19 @@ def keck_ttmag_to_itime(ttmag, wfs='strap'):
 
 def keck_ngsmag_to_itime(gsmag, wfs='ccd39'):
     """
-    Calculate the expected integration time for STRAP given
-    a tip-tilt star magnitude in the R-band.
+    Calculate the expected integration time for Keck NGS WFS
+    (CCD39) given a tip-tilt star magnitude in the R-band.
 
     Inputs
     ------
-    ttmag : float
-        Tip-tilt star brightness in apparent R-band magnitudes in
+    gsmag : float
+        NGS star brightness in apparent R-band magnitudes in
         the Vega system.
 
     Ouptputs
     --------
     itime : float
-        The integration time used for STRAP in seconds.
+        The integration time used for NGS WFS in seconds.
     """
     if wfs == 'ccd39':
         tab = Table.read(ccd39_rmag_tab, format='ascii')
