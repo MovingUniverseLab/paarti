@@ -106,7 +106,7 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         
     elif wfs == 'NGSWFS':
         band = "R"    # not actually at V.
-        wavelength = 0.589e-6
+        wavelength = 0.658e-6
         
         # side length of square subaperture (m).
         side = 0.5625
