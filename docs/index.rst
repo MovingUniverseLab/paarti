@@ -15,6 +15,16 @@ including those at the Keck observatory. We have provided supplementary document
 for MAOS configuration parameters in a 
 `Google Doc <https://docs.google.com/document/d/1_rIU7ttHSZIgGWyOPOsU-dFmtxIsOk-FxezcGy6LKXY/edit?usp=sharing>`__.
 
+In order to tell paarti where MAOS configuration files live (the default ones that
+come with the MAOS package), you need to set an evironment variable in your
+.zshenv, .cshrc, or .bash_profile files. For example, in .zshenv, add:
+
+.. code-block::
+   
+   export MAOS_CONFIG=/g/lu/code/maos/config
+
+
+
 paarti Module
 =============
 
@@ -22,8 +32,3 @@ paarti Module
   :maxdepth: 2
 
   paarti/index.rst
-
-.. note:: The layout of this directory is simply a suggestion.  To follow
-          traditional practice, do *not* edit this page, but instead place
-          all documentation for the package inside ``paarti/``.
-          You can follow this practice or choose your own layout.

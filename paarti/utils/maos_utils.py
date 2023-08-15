@@ -463,7 +463,6 @@ def read_maos_psd(psd_input_file, type='jitter'):
         psd = psd_in[1] * u.m**2 / u.Hz
 
     return freq, psd
-    
 
 def psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp):
     """
@@ -487,6 +486,14 @@ def psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp):
 
     vib_jitter_amp : float
         Integrated jitter in arcsec over the whole vibration peak.
+
+    Output
+    ------
+    freq : array-like
+        Array of frequencies in Hz.
+
+    psd : array-like
+        Array of powers in radian^2.
     """
     freq, psd = read_maos_psd(psd_input_file)
     

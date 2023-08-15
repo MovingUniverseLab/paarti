@@ -6,7 +6,7 @@ PSFs with AO for Astronomical Research, Testing, and Instrumentation
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
-**PAARTI** is a Python package used to process, analyze, and visualize Point Spread Functions in Adaptive Optics.
+**PAARTI** is a Python package used to process, analyze, and visualize Point Spread Functions for adaptive optics images.
 
 If you have questions or issues with the package, please contact Jessica Lu at `jlu.astro@berkeley.edu <mailto:jlu.astro@berkeley.edu>`__.
 
