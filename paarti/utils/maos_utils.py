@@ -25,22 +25,6 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 6.0 	8.5 	1   	0.1 	nd2 	0
 0.0 	6.0 	1   	0.1 	nd3 	0"""
 
-ccd39_rmag_tab = """# File: ngsao_vmagbg.dat\n
-watao     minmag    maxmag     WSSMGN   WSFRRT1   WSFRRT2  OBWNNAME  bkgnd
-0           15.5      18.0      0        30          30    open        1
-1           15.0      15.5      0        41          41    open        1
-2           14.5      15.0      0        60          60    open        1
-3           14.0      14.5      0       100         100    open        1
-4           13.0      14.0      0       149         149    open        1
-5           12.0      13.0      0       250         250    open        1
-6            9.5      12.0      0       438         438    open        1
-7            7.5       9.5      0      1054        1054    open        0
-8            6.0       7.5      0      1054        1054    open        0
-9            4.0       6.0      1      1054        1054    open        0
-10           3.0       4.0      2      1054        1054    open        0
-11           1.5       3.0      3      1054        1054    open        0
-12          -3.0       1.5      3      1054        1054    15trans     0"""
-
 
 def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     '''
@@ -52,9 +36,21 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     Equations 65-68 from section 3B of
     Clare, R. et al (2006). Adaptive optics sky coverage modelling for
     extremely large telescopes. Applied Optics 45, 35 (8964-8978)
-    '''
 
-    wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'TRICK-H', 'TRICK-K', 'STRAP']
+    by Brooke:
+    Inputs: m is magnitude, wfs is string name for wave-front sensor,
+    and optional input wfs_int_time refers to the integration time of
+    said wave-front sensor.
+    '''
+    # new camera setups by Brooke:
+    # LGSWFS-OCAM2K refers to 'KAPA' and 'KAPA + HODM' setups in simulation nomenclature
+    # LGS-HODM-HOWFS refers to 'KAPA + New HODM, New HOWFS'
+    # 'KAPA + New HODM, New HOWFS, New LGS' requires adjusted magnitude input
+    # but not a separate elif branch, as all parameters are the same as
+    # LGS-HODM-HOWFS
+    # NewLGS refers to 'KAPA + New LGS'
+ 
+    wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 'NewLGS-HODM-HOWFS', 'NewLGS', 'TRICK-H', 'TRICK-K', 'STRAP']
 
     if wfs not in wfs_list:
         raise RuntimeError("keck_nea_photons: Invalid WFS.")
@@ -104,35 +100,13 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         # quadcell
         pix_per_ap = 4
         
-    elif wfs == 'NGSWFS':
-        band = "R"    # not actually at V.
-        wavelength = 0.658e-6
-        
-        # side length of square subaperture (m).
-        side = 0.5625
-        
-        # From Carlos' config file
-        ps = 3.0
-        sigma_e = 3.0
-        
-        # From KAON 1303  Table 20
-        theta_beta = 1.5 *(math.pi/180)/(60*60)
-        
-        # KAON 1303 Table 7 states 0.28, but Np=1000 is already
-        # measured on the detector.
-        # Modified to account for QE=0.88 on the WFS detector at R-band.
-        # from error budget spreadsheet.
-        throughput = 0.28 * 0.88
-        
-        # quadcell
-        pix_per_ap = 4
-        
     elif wfs == 'LGSWFS':
         band = "R"    # not actually at V.
         wavelength = 0.589e-6
         
-        # side length of square subaperture (m).
-        side = 0.5625
+        # side length of square subaperture (m). Should be equal to powfs.dsa and dm.dx in
+        # respective config files.
+        side = 0.563
         
         # From Carlos' config file
         ps = 3.0
@@ -155,7 +129,7 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         wavelength = 0.589e-6
         
         # side length of square subaperture (m).
-        side = 0.5625
+        side = 0.563
         
         # From Carlos' config file
         ps = 3.0
@@ -172,7 +146,17 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         
         # quadcell
         pix_per_ap = 4
-        
+
+    elif wfs == 'LGS-HODM-HOWFS':
+        band = "R"
+        wavelength = 0.589e-6
+        side = 0.17
+        ps = 3.0
+        sigma_e = 0.1
+        theta_beta = 1.5 * (math.pi/180)/(60*60)
+        throughput = 0.36 * 0.88
+        pix_per_ap = 4
+  
     elif wfs == 'TRICK-H':
         band = "H"
         wavelength = 1.63e-6
@@ -299,10 +283,10 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     # Show results
     ####
     print('Outputs:')
-    print(f"  N_photons from star:                   {Np:.3f}")
+    print(f"  N_photons from star (powfs.siglev for config files):                   {Np:.3f}")
     print(f"  N_photons per pixel from background:   {Nb:.3f}")
     print(f"  SNR:                                   {SNR:.3f}")
-    print(f"  NEA:                                   {sigma_theta:.3f} mas")
+    print(f"  NEA (powfs.nearecon for config files):                                   {sigma_theta:.3f} mas")
 
     return SNR, sigma_theta
 
@@ -401,39 +385,10 @@ def keck_ttmag_to_itime(ttmag, wfs='strap'):
 
     return itime
 
-def keck_ngsmag_to_itime(gsmag, wfs='ccd39'):
-    """
-    Calculate the expected integration time for Keck NGS WFS
-    (CCD39) given a tip-tilt star magnitude in the R-band.
-
-    Inputs
-    ------
-    gsmag : float
-        NGS star brightness in apparent R-band magnitudes in
-        the Vega system.
-
-    Ouptputs
-    --------
-    itime : float
-        The integration time used for NGS WFS in seconds.
-    """
-    if wfs == 'ccd39':
-        tab = Table.read(ccd39_rmag_tab, format='ascii')
-    else:
-        raise RuntimeError(f'Invalid WFS type: {wfs}')
-
-    # Find the bin where our TT star belongs.
-    idx = np.where((tab['minmag'] <= gsmag) & (gsmag < tab['maxmag']))[0]
-
-    # Fetch the integration time. 
-    itime = 1.0 / tab['WSFRRT1'][idx[0]]
-
-    return itime
-    
-
 def print_wfe_metrics(directory='./', seed=10):
     results_file = f'{directory}Res_{seed}.bin'
     results = readbin.readbin(results_file)
+    print("Looking in directory:", directory)
 
     # Open-loop WFE: Piston removed, TT only, Piston+TT removed
     open_mean_nm = results[0].mean(axis=0)**0.5 * 1e9   # in nm
@@ -456,7 +411,9 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
     Print some PSF metrics for a central PSF computed by MAOS
     at an arbitrary number of wavelengths.
     """
+    print("Looking in directory:", directory)  
     fits_files = glob.glob(directory + f'evlpsfcl_{seed}_x0_y0.fits')
+    
     psf_all_wvls = fits.open(fits_files[0])
  
     nwvl = len(psf_all_wvls)
@@ -532,6 +489,7 @@ def read_maos_psd(psd_input_file, type='jitter'):
         psd = psd_in[1] * u.m**2 / u.Hz
 
     return freq, psd
+    
 
 def psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp):
     """
@@ -555,14 +513,6 @@ def psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp):
 
     vib_jitter_amp : float
         Integrated jitter in arcsec over the whole vibration peak.
-
-    Output
-    ------
-    freq : array-like
-        Array of frequencies in Hz.
-
-    psd : array-like
-        Array of powers in radian^2.
     """
     freq, psd = read_maos_psd(psd_input_file)
     
