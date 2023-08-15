@@ -104,6 +104,29 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         # quadcell
         pix_per_ap = 4
         
+    elif wfs == 'NGSWFS':
+        band = "R"    # not actually at V.
+        wavelength = 0.589e-6
+        
+        # side length of square subaperture (m).
+        side = 0.5625
+        
+        # From Carlos' config file
+        ps = 3.0
+        sigma_e = 3.0
+        
+        # From KAON 1303  Table 20
+        theta_beta = 1.5 *(math.pi/180)/(60*60)
+        
+        # KAON 1303 Table 7 states 0.28, but Np=1000 is already
+        # measured on the detector.
+        # Modified to account for QE=0.88 on the WFS detector at R-band.
+        # from error budget spreadsheet.
+        throughput = 0.28 * 0.88
+        
+        # quadcell
+        pix_per_ap = 4
+        
     elif wfs == 'LGSWFS':
         band = "R"    # not actually at V.
         wavelength = 0.589e-6
