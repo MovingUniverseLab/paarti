@@ -25,6 +25,22 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 6.0 	8.5 	1   	0.1 	nd2 	0
 0.0 	6.0 	1   	0.1 	nd3 	0"""
 
+ccd39_rmag_tab = """# File: ngsao_vmagbg.dat\n
+watao     minmag    maxmag     WSSMGN   WSFRRT1   WSFRRT2  OBWNNAME  bkgnd
+0           15.5      18.0      0        30          30    open        1
+1           15.0      15.5      0        41          41    open        1
+2           14.5      15.0      0        60          60    open        1
+3           14.0      14.5      0       100         100    open        1
+4           13.0      14.0      0       149         149    open        1
+5           12.0      13.0      0       250         250    open        1
+6            9.5      12.0      0       438         438    open        1
+7            7.5       9.5      0      1054        1054    open        0
+8            6.0       7.5      0      1054        1054    open        0
+9            4.0       6.0      1      1054        1054    open        0
+10           3.0       4.0      2      1054        1054    open        0
+11           1.5       3.0      3      1054        1054    open        0
+12          -3.0       1.5      3      1054        1054    15trans     0"""
+
 
 def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     '''
@@ -361,6 +377,36 @@ def keck_ttmag_to_itime(ttmag, wfs='strap'):
     itime = tab['Integ'][idx[0]]
 
     return itime
+
+def keck_ngsmag_to_itime(gsmag, wfs='ccd39'):
+    """
+    Calculate the expected integration time for STRAP given
+    a tip-tilt star magnitude in the R-band.
+
+    Inputs
+    ------
+    ttmag : float
+        Tip-tilt star brightness in apparent R-band magnitudes in
+        the Vega system.
+
+    Ouptputs
+    --------
+    itime : float
+        The integration time used for STRAP in seconds.
+    """
+    if wfs == 'ccd39':
+        tab = Table.read(ccd39_rmag_tab, format='ascii')
+    else:
+        raise RuntimeError(f'Invalid WFS type: {wfs}')
+
+    # Find the bin where our TT star belongs.
+    idx = np.where((tab['minmag'] <= gsmag) & (gsmag < tab['maxmag']))[0]
+
+    # Fetch the integration time. 
+    itime = 1.0 / tab['WSFRRT1'][idx[0]]
+
+    return itime
+    
 
 def print_wfe_metrics(directory='./', seed=10):
     results_file = f'{directory}Res_{seed}.bin'
