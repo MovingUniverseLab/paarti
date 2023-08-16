@@ -406,7 +406,7 @@ def print_wfe_metrics(directory='./', seed=10):
     return
     
 
-def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
+def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10, cut_radius=20):
     """
     Print some PSF metrics for a central PSF computed by MAOS
     at an arbitrary number of wavelengths.
@@ -425,7 +425,8 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
         psf = psf_all_wvls[pp].data
         hdr = psf_all_wvls[pp].header
         mets = metrics.calc_psf_metrics_single(psf, hdr['DP'],
-                                               oversamp=oversamp)
+                                               oversamp=oversamp,
+                                               cut_radius=cut_radius)
 
         sout  = f'{hdr["WVL"]*1e6:10.3f} '
         sout += f'{mets["strehl"]:6.2f} '
