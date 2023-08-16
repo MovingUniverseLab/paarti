@@ -181,7 +181,11 @@ def calc_psf_metrics_single(psf, pixel_scale, oversamp=1, cut_radius=20):
 
         energy = phot_table['aperture_sum']
 
+        warnings.resetwarnings()
+        warnings.filterwarnings('ignore', category=DeprecationWarning, append=True)
         enc_energy[rr] = energy
+        warnings.resetwarnings()
+        warnings.filterwarnings('always', category=DeprecationWarning, append=True)
 
     # Normalize the encircled energy by the total. Not quite correct,
     # but close enough.
