@@ -169,47 +169,11 @@ def make_keck_ncpa(rms_wfe, seg_piston_file='Keck_Segment_Pistons_2023_04_29.csv
 
 def make_keck_pupil():
     """
-    From Arroyo (Matthew Britton):
-    Construct an aperture like at Keck,
-    with rings of hexagonal apertures.
-    The central hexagon is labelled as ring
-    zero.  So for the Keck primary,
-    inner_ring = 1 and outer_ring = 3
-
-    According to Mitch, the actual glass 
-    hexagon has a 90 cm edge.  But the outer
-    1 mm is beveled, so is optically opaque.
-    Then there's a 5 mm gap between hexes.
-    So its like having a 7 mm gap, with a hexagon
-    that has an edge length of 
-    90 cm - 2*(.1 cm) /sqrt(3) = 89.88453 cm
-
-    Note - edge length and gap size must be 
-    positive.  Both are in meters.
-
-    See https://arxiv.org/pdf/2109.00612.pdf for more
-    recent details and measurements of the pupil.
+    Generates a fits file corresponding to the Keck pupil. 
     """
-    inner_ring = 1
-    outer_ring = 3
-    in_edge_length = 89.88453 * u.cm
-    in_gap_size = 7 * u.mm
-    sec_rad = 2.48 * u.m / 2   # secondary alone is 1.4 m diam, but support structure adds another 1m
-    spider_num = 6
-    spider_width = 0.0254 * u.m 
 
-    # 3 rings of segments yields
-    ap = poppy.MultiHexagonAperture(rings=outer_ring, side=in_edge_length, gap=in_gap_size)
-    # secondary with spiders
-    sec = poppy.SecondaryObscuration(secondary_radius=sec_rad,
-                                     n_supports=spider_num, support_width=spider_width)
-
-    ap.pupil_diam *= u.m
-    
-    # combine into one optic
-    atlast = poppy.CompoundAnalyticOptic(opticslist=[ap, sec], name='Keck')
-
-    # atlast.display(npix=1024, colorbar_orientation='vertical')
+    #Grab the poppy keck pupil
+    atlast = make_keck_poppy_pupil()
 
     # Use 11 m sized rectangular array of the pupil.
     diam = 11 * u.m
@@ -238,4 +202,75 @@ def make_keck_pupil():
     fits.writeto('KECK_gaps_spiders.fits', transmittance, hdr, overwrite=True)
 
     return
+
+def make_keck_poppy_pupil():
+    '''
+    Makes a poppy pupil object matching the Keck Pupil. 
+
+    From Arroyo (Matthew Britton):
+    Construct an aperture like at Keck,
+    with rings of hexagonal apertures.
+    The central hexagon is labelled as ring
+    zero.  So for the Keck primary,
+    inner_ring = 1 and outer_ring = 3
+
+    According to Mitch, the actual glass 
+    hexagon has a 90 cm edge.  But the outer
+    1 mm is beveled, so is optically opaque.
+    Then there's a 5 mm gap between hexes.
+    So its like having a 7 mm gap, with a hexagon
+    that has an edge length of 
+    90 cm - 2*(.1 cm) /sqrt(3) = 89.88453 cm
+
+    Note - edge length and gap size must be 
+    positive.  Both are in meters.
+
+    See https://arxiv.org/pdf/2109.00612.pdf for more
+    recent details and measurements of the pupil.
+    
+    Returns a poppy CompoundAnalyticOptic
+    '''
+
+    # inner_ring = 1 #Not used
+    outer_ring = 3
+    in_edge_length = 89.88453 * u.cm
+    in_gap_size = 7 * u.mm
+    sec_rad = 2.48 * u.m / 2   # secondary alone is 1.4 m diam, but support structure adds another 1m
+    spider_num = 6
+    spider_width = 0.0254 * u.m 
+
+    # 3 rings of segments yields
+    ap = poppy.MultiHexagonAperture(rings=outer_ring, side=in_edge_length, gap=in_gap_size)
+    # secondary with spiders
+    sec = poppy.SecondaryObscuration(secondary_radius=sec_rad,
+                                     n_supports=spider_num, support_width=spider_width)
+
+    ap.pupil_diam *= u.m
+    
+    # combine into one optic
+    atlast = poppy.CompoundAnalyticOptic(opticslist=[ap, sec], name='Keck')
+
+    return atlast
+    
+def generate_keck_psf(wavelength,pixelscale,fov=2.0):
+    '''
+    Generate a perfect monochromatic Keck PSF using the poppy 
+
+    Inputs: 
+    wavelength - in meters
+    pixelscale - in arcsecond
+    fov - field of view in arcseconds
+
+    '''
+
+    #TODO Check for astropy units. Consider forcing the inputs to have units
+
+    osys = poppy.OpticalSystem()
+    osys.add_pupil(make_keck_poppy_pupil())  
+
+    osys.add_detector(pixelscale=pixelscale*u.arcsec/u.pixel, fov_arcsec=fov*u.arcsec)
+
+    psf = osys.calc_psf(wavelength)   
+
+    return psf
 

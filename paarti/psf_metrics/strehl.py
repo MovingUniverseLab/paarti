@@ -47,7 +47,7 @@ def calc_strehl(psf_stack, dl_img_file='./Keck/kp.fits', aper_size=0.3):
     if 'Keck' in dl_img_file: 
         scale_dl = 0.009952     # Hard-coded
     else:
-        scale_dl = dl_img['PIXSCALE']
+        scale_dl = dl_hdr['PIXSCALE']
     rescale = scale_dl / scale
     
     if rescale != 1:
@@ -64,7 +64,6 @@ def calc_strehl(psf_stack, dl_img_file='./Keck/kp.fits', aper_size=0.3):
     # Calculate peak flux ratio, to normalize our calculated Strehl ratio
     peak_coords_dl = np.unravel_index(np.argmax(dl_img, axis=None), dl_img.shape)
     dl_peak_flux_ratio = calc_peak_flux_ratio(dl_img, peak_coords_dl, radius, skysub=False)
-    
     
     
     # Go through each PSF in grid and calculate strehl
@@ -89,7 +88,6 @@ def calc_strehl(psf_stack, dl_img_file='./Keck/kp.fits', aper_size=0.3):
     psf_stack.psf_rms_wfes = psf_rms_wfes
     
     return
-
 
 def calc_strehl_single(psf, aper_size, wavelength, scale, telescope_diam,
                        radius, dl_peak_flux_ratio, coords=None):
@@ -165,7 +163,6 @@ def calc_strehl_single(psf, aper_size, wavelength, scale, telescope_diam,
 
     
     return (strehl, fwhm, rms_wfe)
-
 
 def calc_peak_flux_ratio(img, coords, radius, skysub=True):
     """
@@ -268,7 +265,6 @@ def fit_gaussian2d(img, coords, boxsize, plot=False):
     
     return g2d
     
-
 def fwhm_to_stddev(fwhm):
     return fwhm / 2.355
 
