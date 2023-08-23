@@ -215,7 +215,7 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
 
         # side length of square subaperture (m)        
         # side = D  
-        side = math.sqrt( math.pi * ((D  / 2.0)**2 - (Ds / 2.)**2) )
+        side = math.sqrt( math.pi * ((D  / 2.0)**2 - (Ds / 2.)**2) ) / 2.0
         
         # From KAON 1322, just above equation 19.
         ps = 1.3
@@ -241,6 +241,20 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         print("Other wfs:", wfs)
 
 
+    SNR, sigma_theta, Np, Nb = keck_nea_photons_any_config(wfs,
+                                                           side,
+                                                           throughput,
+                                                           ps,
+                                                           theta_beta,
+                                                           band,
+                                                           sigma_e,
+                                                           pix_per_ap,
+                                                           time,
+                                                           m)
+
+    return SNR, sigma_theta, Np, Nb
+
+def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta, band, sigma_e, pix_per_ap, time, m):
     print('Assumptions:')
     print(f'  Wave-Front Sensor       = {wfs}')
     print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
@@ -271,8 +285,8 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     # # Effective spot size of the subaperture NGS assuming a
     # # diffraction limited core. (eq 68)    
     # theta_beta = 3*math.pi*wavelength*np.sqrt(N_sa)/(16*D)
-
     # signal to noise ratio of a single subaperture (eq 66)
+    
     SNR = Np /np.sqrt(Np + pix_per_ap*Nb + pix_per_ap*sigma_e**2)
 
     # noise equivalent angle in milliarcseconds (eq 65)
@@ -287,9 +301,9 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     print(f"  N_photons per pixel from background:   {Nb:.3f}")
     print(f"  SNR:                                   {SNR:.3f}")
     print(f"  NEA (powfs.nearecon for config files):                                   {sigma_theta:.3f} mas")
-
+    
     return SNR, sigma_theta, Np, Nb
-
+    
 
 def n_photons(side, time, m, band, ps, throughput):
     """Calculate the number of photons from a star and
