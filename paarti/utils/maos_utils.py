@@ -288,7 +288,7 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     print(f"  SNR:                                   {SNR:.3f}")
     print(f"  NEA (powfs.nearecon for config files):                                   {sigma_theta:.3f} mas")
 
-    return SNR, sigma_theta
+    return SNR, sigma_theta, Np, Nb
 
 
 def n_photons(side, time, m, band, ps, throughput):
@@ -403,9 +403,8 @@ def print_wfe_metrics(directory='./', seed=10):
     print(f'{"Open  ":<7s}  {open_mean_nm[0]:11.1f}  {open_mean_nm[2]:11.1f}  {open_mean_nm[1]:11.1f}')
     print(f'{"Closed":<7s}  {clos_mean_nm[0]:11.1f}  {clos_mean_nm[2]:11.1f}  {clos_mean_nm[1]:11.1f}')
 
-    return
+    return open_mean_nm, clos_mean_nm
     
-
 def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10, cut_radius=20):
     """
     Print some PSF metrics for a central PSF computed by MAOS
@@ -417,6 +416,12 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10, cut_radius=20):
     psf_all_wvls = fits.open(fits_files[0])
  
     nwvl = len(psf_all_wvls)
+
+    wavelengths = np.zeros(nwvl)
+    strehl_values = np.zeros(nwvl)
+    fwhm_gaus_values = np.zeros(nwvl)
+    fwhm_emp_values = np.zeros(nwvl)
+    r_ee80_values = np.zeros(nwvl)
  
     print(f'{"Wavelength":10s} {"Strehl":>6s} {"FWHM_gaus":>10s} {"FWHM_emp":>10s} {"r_EE80":>6s}')
     print(f'{"(microns)":10s} {"":>6s} {"(mas)":>10s} {"(mas)":>10s} {"(mas)":>6s}')
@@ -424,9 +429,12 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10, cut_radius=20):
     for pp in range(nwvl):
         psf = psf_all_wvls[pp].data
         hdr = psf_all_wvls[pp].header
-        mets = metrics.calc_psf_metrics_single(psf, hdr['DP'],
-                                               oversamp=oversamp,
-                                               cut_radius=cut_radius)
+        mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], oversamp=oversamp)
+        wavelengths[pp] = hdr["WVL"] * 1e6
+        strehl_values[pp] = mets["strehl"]
+        fwhm_gaus_values[pp] = mets["emp_fwhm"] * 1e3
+        fwhm_emp_values[pp] = mets["fwhm"] * 1e3
+        r_ee80_values[pp] = mets["ee80"] * 1e3
 
         sout  = f'{hdr["WVL"]*1e6:10.3f} '
         sout += f'{mets["strehl"]:6.2f} '
@@ -437,7 +445,7 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10, cut_radius=20):
 
     psf_all_wvls.close()
  
-    return
+    return wavelengths, strehl_values, fwhm_gaus_values, fwhm_emp_values, r_ee80_values
 
 def print_psf_metrics_open(directory='./', oversamp=3, seed=10):
     """
