@@ -52,9 +52,6 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
  
     wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 'NewLGS-HODM-HOWFS', 'NewLGS', 'TRICK-H', 'TRICK-K', 'STRAP']
 
-    if wfs not in wfs_list:
-        raise RuntimeError("keck_nea_photons: Invalid WFS.")
-
     # telescope diameter (m)
     # D = 11.8125
     D = 10.949
