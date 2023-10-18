@@ -34,27 +34,23 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 6.0 	8.5 	1   	0.1 	nd2 	0
 0.0 	6.0 	1   	0.1 	nd3 	0"""
 
-def keck_nea_photons(m, wfs, wfs_int_time=1/800):
+
+def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     """
     Calculate the number of photons, number of background photons,
     and noise equivalent angle for a natural guide star.
-    
-    By Matthew Freeman and Paolo Turri, modified by Brooke DiGia
-
-    Equations 65-68 from section 3B of Clare, R. et al (2006). 
-    Adaptive optics sky coverage modelling for extremely large 
-    telescopes. Applied Optics 45, 35 (8964-8978)
 
     Inputs:
-    ------------ 
-    m              : float
-        Guide star magnitude
+    -------
+    m : float
+        Magnitude of guide star
+    wfs : str
+        Name of WFS to set camera properties.
 
-    wfs            : str
-        Wave-front sensor for which to perform calculations
-
-    wfs_int_time   : float, default=1/800
-        Integration time of given wfs
+    Optional Inputs:
+    ----------------
+    wfs_int_time : float
+        Integration time of the WFS.
 
     Outputs:
     ------------
@@ -65,10 +61,22 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
         Noise-equivalent angle (NEA) in milliarcseconds (mas)
 
     Np             : float
-        Number of photons from input guide star on subaperture
+        Number of photons (or e-) from input guide star on subaperture
 
     Nb             : float
-        Number of photons from background per pixel
+        Number of photons (or e-) from background per pixel
+
+
+    Notes
+    -----
+    
+    By Matthew Freeman and Paolo Turri, modified by Brooke DiGia
+
+    Equations 65-68 from section 3B of Clare, R. et al (2006). 
+    Adaptive optics sky coverage modelling for extremely large 
+    telescopes. Applied Optics 45, 35 (8964-8978)
+
+    
     """
     # List of pre-defined wave-front sensors (wfs)
     # LGSWFS-OCAM2K  : KAPA and KAPA+HODM simulation setups
@@ -76,22 +84,21 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
     wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 
                 'TRICK-H', 'TRICK-K', 'STRAP']
 
+    if wfs not in wfs_list:
+        raise RuntimeError("keck_nea_photons: Invalid WFS.")
+    
     # Keck telescope diameter (m)
     D = 10.949
     # Secondary obscuration diameter (m)
     Ds = 1.8
     
-    # Median 17.8 cm at 0.5 microns from KAON303
-    # Median 22.0 cm at 0.5 micron from Raven paper (Yoshito 2017)
-    # Carlos' script uses 0.16*cos(parm.atm.zenithAngle)^(3/5)
-
     # Initialize parameters that will be set below based on input
     # wave-front sensor
-    wavelength = 0.0  # Guide star imaging wavelength
-    ps = 0.0          # Pixel scale (arcsec/px)
-    sigma_e = 0.0     # RMS detector read noise per pixel
-    theta_beta = 0.0  # Spot size on detector (rad)
-    pix_per_ap = 0    # Pixels per subaperture, for noise calculation
+    # wavelength = 0.0  # Guide star imaging wavelength
+    # ps = 0.0          # Pixel scale (arcsec/px)
+    # sigma_e = 0.0     # RMS detector read noise per pixel
+    # theta_beta = 0.0  # Spot size on detector (rad)
+    # pix_per_ap = 0    # Pixels per subaperture, for noise calculation
     
     if wfs == 'LBWFS':
         band = "R"
@@ -238,8 +245,8 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
 
         # ROI
         pix_per_ap = 4
-    else:
-        print("WFS %s not included in pre-defined list" % wfs)
+
+        
 
     SNR, sigma_theta, Np, Nb = keck_nea_photons_any_config(wfs,
                                                            side,
@@ -253,56 +260,45 @@ def keck_nea_photons(m, wfs, wfs_int_time=1/800):
                                                            m)
     return SNR, sigma_theta, Np, Nb
 
-def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta, 
+def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
                                 band, sigma_e, pix_per_ap, time, m):
     """
-    Helper function for above function keck_nea_photons().
-
     Inputs:
-    ------------
-    wfs            : string
-        Wave-front sensor identifier
+    wfs : str
+        Arbitrary string name of WFS for printouts. Note there is one
+        override if "LGSWFS" is in your wfs name, then it resets the
+        number of background photons to 6 rather than taking the sky
+        background. This is presumably from some Rayleigh backscatter
+        of the laser spot.  This probably needs to be fixed.
 
-    side           : float
-        Length of square subaperture on one side (m)
+    side : float
+        Side of a sub-aperture in meters.
 
-    throughput     : float
-        Detector throughput with quantum efficiency
+    throughput : float
+        Fractional throughput (0-1) of whole telescope + WFS system
 
-    ps             : float
-        Pixel scale (arcsec/px)
-    
-    theta_beta     : float
-        Spot size on detector (rad)
+    ps : float
+        Plate scale in arcsec / pixel on the WFS.
 
-    band           : string
-        Wavelength band
+    theta_beta : float
+        Spot size on sub-aperture in units of radians. For LGS spots, use
+        (1.5'' * pi /180) / (60*60)
 
-    sigma_e        : float
-        RMS detector read noise per pixel
+    band : str
+        Filter used for WFSing. This is used to determine the sky background
+        flux contributing to each sub-aperutre. 
 
-    pix_per_ap     : int
-        Pixels per subaperture
+    sigma_e : float
+        Readnoise in electrons.
 
-    time           : float
-        WFS integration time
+    pix_per_ap : int
+        Number of pixels per sub-aperture.
 
-    m              : float
-        Apparent guide star magnitude
+    time : float
+        Integration time of the WFS in unit of seconds.
 
-    Outputs:
-    ------------
-    SNR            : float
-        Signal-to-noise ratio of a single subaperture
-
-    sigma_theta    : float
-        Noise-equivalent angle (NEA) in milliarcseconds (mas)
-
-    Np             : float
-        Number of photons from input guide star on subaperture
-
-    Nb             : float
-        Number of photons from background per pixel
+    m : float
+        Magnitude of the guide star in the specified filter. 
     """
     print('Assumptions:')
     print(f'  Wave-Front Sensor       = {wfs}')
@@ -531,7 +527,7 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
         flux value, and computing the distance between them. This quantity
         is then converted to micro-arcsec (mas) using the MAOS pixel scale
         (arcsec/px) from the MAOS PSF header
-
+=
     r_ee80_values    : array, dtype=float
         Array of radii for each MAOS PSF. At each wavelength, a radius
         is computed on the MAOS PSF, within which 80% of the total
