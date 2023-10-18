@@ -88,7 +88,7 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     # Carlos' script uses 0.16*cos(parm.atm.zenithAngle )^(3/5); % coherence length in meters at 0.5microns
     
     # wavelength = guide star imaging wavelength
-    # ps = pixel scale (arcsec).  
+    # ps = pixel scale (arcsec/pixel).  
     # sigma_e = rms detector read noise per pixel
     # theta_beta = spot size on detector (radians)
     # pix_per_ap = pixels per subaperture, for noise calculation
@@ -269,7 +269,46 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
 
     return SNR, sigma_theta, Np, Nb
 
-def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta, band, sigma_e, pix_per_ap, time, m):
+def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
+                                band, sigma_e, pix_per_ap, time, m):
+    """
+    Inputs:
+    wfs : str
+        Arbitrary string name of WFS for printouts. Note there is one
+        override if "LGSWFS" is in your wfs name, then it resets the
+        number of background photons to 6 rather than taking the sky
+        background. This is presumably from some Rayleigh backscatter
+        of the laser spot.  This probably needs to be fixed.
+
+    side : float
+        Side of a sub-aperture in meters.
+
+    throughput : float
+        Fractional throughput (0-1) of whole telescope + WFS system
+
+    ps : float
+        Plate scale in arcsec / pixel on the WFS.
+
+    theta_beta : float
+        Spot size on sub-aperture in units of radians. For LGS spots, use
+        (1.5'' * pi /180) / (60*60)
+
+    band : str
+        Filter used for WFSing. This is used to determine the sky background
+        flux contributing to each sub-aperutre. 
+
+    sigma_e : float
+        Readnoise in electrons.
+
+    pix_per_ap : int
+        Number of pixels per sub-aperture.
+
+    time : float
+        Integration time of the WFS in unit of seconds.
+
+    m : float
+        Magnitude of the guide star in the specified filter. 
+    """
     print('Assumptions:')
     print(f'  Wave-Front Sensor       = {wfs}')
     print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
