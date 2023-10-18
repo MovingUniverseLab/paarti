@@ -28,7 +28,7 @@ def make_keck_vib_psd():
     #vib_jitter_amp_tot = (45 + 48)  / 2.0  # mas
 
     # Override since this looks like it is getting partially corrected in MAOS. 
-    vib_jitter_amp_tot = (20**2 + 15**2 + 7**2)**0.5 # mas
+    vib_jitter_amp_tot = (20**2 + 15**2 + 3**2)**0.5 # mas, originally (20**2 + 15**2 + 7**2)**0.5
     
     # TMT PSD already contains windshake and a broad vibration spectrum. No peaks though. 
     # Subtract out the jitter already in the TMT PSD to get the
@@ -51,6 +51,7 @@ def make_keck_vib_psd():
     print(f'Total jitter {maos_utils.psd_integrate_sqrt(freq, psd).to("mas")}')
 
     psd_outroot = f'{maos_psd_dir}PSD_Keck_ws20mas_vib{vib_jitter_amp_tot:.0f}mas_rad2'
+    print(psd_outroot)
     plt.savefig(psd_outroot + '.png')
     
     # Create a 2D array with freq and power as expected by MAOS.

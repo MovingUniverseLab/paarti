@@ -15,8 +15,7 @@ import scipy, scipy.misc, scipy.ndimage
 import matplotlib.pyplot as plt
 import os
 import pdb
-import difflib
-from imaka.reduce import massdimm
+import urllib
 from pandas import read_csv
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
@@ -1336,13 +1335,13 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
 
     Inputs:
     ------------
-    file    : string
+    file     : string
         Path to on-sky FITS file
 
-    masspro : string
+    masspro  : string
         Path to MASS data file for night of observation
 
-    dimmdat : string
+    dimmdat  : string
         Path to DIMM data file for night of observation
 
     Outputs:
@@ -1360,7 +1359,32 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
         year = date[:4]
         month = date[5:7]
         day = date[8:10]
+        # date_for_massdimm = year + month + day
+
+        """
+        # Pull MASS and DIMM files corresponding to date of observation
+        # if they are not already present in save_dir directory
+        dimmdat = date_for_massdimm + ".dimm.dat"
+        masspro = date_for_massdimm + ".masspro.dat"
+        url_root = "http://mkwc.ifa.hawaii.edu/current/seeing/"
+        url = url_root + "dimm/" + dimmdat
+        if not os.path.exists(dimmdat):
+            try:
+                # Pull and save DIMM file
+                urllib.request.urlretrieve(url, save_dir + dimmdat)
+            except Exception:
+                print(f"Error downloading {dimmdat} from {url}")
         
+        # Reset url
+        url = url_root + "masspro/" + masspro
+        if not os.path.exists(masspro):
+            try:
+                # Pull and save MASS file
+                urllib.request.urlretrieve(url, save_dir + masspro)
+            except Exception:
+                print(f"Error downloading {dimmdat} from {url}")
+        """
+
         # Exposure time on this date, parsed into hour, minute, second (UT)
         expstart = hdr["EXPSTART"]
         expstop = hdr["EXPSTOP"]
@@ -1467,3 +1491,117 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
         print("*** Fried parameter (m):\t\t\t%0.6f" % avg_r0)
         
     return
+
+def run_maos_sims(sim_dirs, top_configs, metrics_files, 
+                  maos_plot=True, aper=0.3):
+    """
+    By Brooke DiGia
+
+    Function to run multiple MAOS simulations in terminal with
+    various options.
+
+    Inputs:
+    ------------
+    sim_dirs      : array, dtype=string
+        Directory(ies) containing configuration files for each
+        simulation to be run.
+
+        For example, the output folder for running the base Keck
+        single-conjugate laser-guide-star AO case is 
+        <path to base>/base/top_configs[i]
+
+    top_configs   : array, dtype=string
+        The name(s) of the top-level configuration file(s) 
+        for simulation(s). These will provide the names for the 
+        simulation output directory folder(s). NOTE: These are the
+        names of the files ONLY, not the paths. By convention,
+        these files are located in the simulation directories, so
+        the user should not specify their full path.
+
+    metrics_files : array, dtype=string
+        Path/name of text file to write calc_strehl results to. Note: MAOS
+        will write and store the simulation outputs in out_dirs. calc_strehl
+        will find and read in the simulation outputs to compute various
+        metrics (Strehl, FWHM, RMS WFE, etc.), and will then write these 
+        metrics to the metrics_file
+
+    maos_plot     : boolean, default=True
+        MAOS output plot option, turned on or off
+
+    aper          : float, default=0.3
+        Aperture size for calc_strehl function used in calculating
+        simulation results.
+        
+    Outputs:
+    ------------
+    None, simulation runs in terminal and results are written to output
+    directory
+    """
+    # Change plotting options if user has turned them off
+    plotall = 1
+    plotsetup = 1
+    if maos_plot == False:
+        plotall = 0
+        plotsetup = 0
+
+    if len(np.array(sim_dirs)) != len(np.array(top_configs)):
+        print("Missing configuration files. Aborting...")
+        return
+    else:
+        out_dirs = []
+        # Loop to set output directories before running simulations
+        for i in range(len(sim_dirs)):
+            folder_name = top_configs[i].replace(".conf", "")
+            if sim_dirs[i][-1] != "/":
+                out_dirs.append(sim_dirs[i] + "/" + folder_name + "/")
+            else:
+                out_dirs.append(sim_dirs[i] + folder_name + "/")
+
+        # Simulation loop
+        for i in range(len(sim_dirs)):
+            # MAOS requires working directory to be the same as simulation
+            # directory for a successful run, so if user is located elsewhere,
+            # move current working directory to simulation directory and 
+            # notify user
+            cwd = os.getcwd()
+            if cwd != sim_dirs[i]:
+                print("Current working directory (CWD) is %s" % cwd)
+                print("Moving CWD to MAOS simulation directory...")
+                os.chdir(sim_dirs[i])
+
+            maos_cmd = f"maos -o {out_dirs[i]} -c {top_configs[i]} plot.all={plotall} plot.setup={plotsetup} -O"
+            print("Running %s" % maos_cmd)
+            print("Simulation results will be stored in %s\n" % out_dirs[i])
+            try:
+                os.system(maos_cmd)
+            except KeyboardInterrupt:
+                print("MAOS simulations interrupted. Aborting...")
+                return
+
+    
+        # After all simulations are run, fetch and display results
+        for i in range(len(out_dirs)):
+            calc_strehl(out_dirs[i], metrics_files[i], skysub=False, apersize=aper)
+    
+    return
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
