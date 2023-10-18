@@ -26,10 +26,25 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 0.0 	6.0 	1   	0.1 	nd3 	0"""
 
 
-def keck_nea_photons(m, wfs, wfs_int_time=1/800):
+def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     '''
     Calculate the number of photons, number of background photons,
     and noise equivalent angle for a natural guide star.
+
+    Inputs:
+    -------
+    m : float
+        Magnitude of guide star
+    wfs : str
+        Name of WFS to set camera properties.
+
+    Optional Inputs:
+    ----------------
+    wfs_int_time : float
+        Integration time of the WFS.
+
+    Notes
+    -----
     
     By Matthew Freeman and Paolo Turri
 
