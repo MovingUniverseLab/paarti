@@ -17,6 +17,7 @@ import os
 import pdb
 import urllib
 from pandas import read_csv
+from kai import instruments
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
 MinMag  MaxMag  Integ   Gain	SFW 	Sky
@@ -66,7 +67,6 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     Nb             : float
         Number of photons (or e-) from background per pixel
 
-
     Notes
     -----
     
@@ -75,8 +75,6 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     Equations 65-68 from section 3B of Clare, R. et al (2006). 
     Adaptive optics sky coverage modelling for extremely large 
     telescopes. Applied Optics 45, 35 (8964-8978)
-
-    
     """
     # List of pre-defined wave-front sensors (wfs)
     # LGSWFS-OCAM2K  : KAPA and KAPA+HODM simulation setups
@@ -246,8 +244,6 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
         # ROI
         pix_per_ap = 4
 
-        
-
     SNR, sigma_theta, Np, Nb = keck_nea_photons_any_config(wfs,
                                                            side,
                                                            throughput,
@@ -264,6 +260,7 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
                                 band, sigma_e, pix_per_ap, time, m):
     """
     Inputs:
+    ----------
     wfs : str
         Arbitrary string name of WFS for printouts. Note there is one
         override if "LGSWFS" is in your wfs name, then it resets the
@@ -527,7 +524,7 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
         flux value, and computing the distance between them. This quantity
         is then converted to micro-arcsec (mas) using the MAOS pixel scale
         (arcsec/px) from the MAOS PSF header
-=
+
     r_ee80_values    : array, dtype=float
         Array of radii for each MAOS PSF. At each wavelength, a radius
         is computed on the MAOS PSF, within which 80% of the total
@@ -761,6 +758,7 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
 
     # Get the PSF .fits files from the input simulation directory
     fits_files = glob.glob(sim_dir + f'evlpsfcl_{sim_seed}_x0_y0.fits')
+    print(fits_files)
     psf_all_wvls = fits.open(fits_files[0])
     nwvl = len(psf_all_wvls)
 
@@ -1125,20 +1123,15 @@ def stddev_to_fwhm(stddev):
     fwhm = 2 * math.sqrt( 2 * math.log(2) ) * stddev
     return fwhm 
 
-def fried(DIMM, D, wvl=500):
+def fried(DIMM, wvl=500):
     """
-    By Brooke DiGia
-
     Function to calculate the Fried parameter r0z given the total seeing
-    in arcseconds and the telescope diameter in meters.
+    in arcseconds.
 
     Inputs:
     ------------
     DIMM : float
-        DIMM seeing, arcsec
-
-    D    : float
-        Telescope diameter, in meters 
+        DIMM seeing, arcsec 
     
     wvl  : float
         Wavelength in nm, default is 500 nm
@@ -1147,15 +1140,14 @@ def fried(DIMM, D, wvl=500):
     ------------
     r0z  : float
         The Fried parameter, r0z, in meters
+
+    By Brooke DiGia
     """ 
-    # r0z = ( (arcsec_to_rad(DIMM)**2 * D**(1.0/3.0)) / (0.18 * (wvl*1e-9)**2) )**(-3.0/5.0)
     r0z = 0.98 * ( wvl*1e-9 / arcsec_to_rad(DIMM) )
     return r0z
 
 def arcsec_to_rad(x):
     """
-    By Brooke DiGia
-
     Function to convert input quantity from arcseconds to radians.
 
     Inputs:
@@ -1167,13 +1159,14 @@ def arcsec_to_rad(x):
     ------------
     x : float
         Desired quantity in radians
+
+    By Brooke DiGia
     """
     return x * (1.0/3600.0) * (math.pi/180.0)
 
-def estimate_turbulence(dimm, diam, mass_wts, wvl=500, normalize=True):
+def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500, 
+                        normalize=True):
     """
-    By Brooke DiGia
-
     Based on equations 16-19 in KAON496:
     https://www.oir.caltech.edu/twiki_oir/pub/Keck/NGAO/NewKAONs/KAON496.pdf
 
@@ -1186,13 +1179,17 @@ def estimate_turbulence(dimm, diam, mass_wts, wvl=500, normalize=True):
     dimm      : float
         Total seeing (arcsec) from DIMM data file
 
-    diam      : float
-        Telescope diameter (meters)
-
     mass_wts  : 6-entry 1D array, floats
-        Cn^2*delta_height weights from MASS data file. Response from 
+        c_l weights from MASS data file. Response from 
         Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
-        as opposed to pure Cn^2 values.
+        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l.
+
+    date      : string
+        Date of MASS/DIMM data; used only for plot filename and labels
+
+    plot      : boolean
+        Option to plot turbulence profile after calculation and save to
+        current working directory
 
     wvl       : float, default = 500 nm
         Wavelength involved in calculation
@@ -1207,44 +1204,37 @@ def estimate_turbulence(dimm, diam, mass_wts, wvl=500, normalize=True):
 
     r0        : float
         Fried parameter (meters)
+
+    By Brooke DiGia
     """
     # Calculate 0th order turbulence moment
-    r0 = fried(dimm, diam, wvl)
+    r0 = fried(dimm, wvl)
     mu0 = 0.06 * ( wvl*1e-9 )**2.0 * r0**(-5.0/3.0)
 
-    # MAOS atmosphere config file expects array of pure Cn^2 weights,
-    # rather than current format of Cn^2*delta_h. Extract the weights
-    # from input MASS data using known heights (heights are non-linear
-    # so this has to be hard-coded):
-    cn2_at_05km = mass_wts[0]/500.0
-    cn2_at_1km = mass_wts[1]/1000.0
-    cn2_at_2km = mass_wts[2]/2000.0
-    cn2_at_4km = mass_wts[3]/4000.0
-    cn2_at_8km = mass_wts[4]/8000.0
-    cn2_at_16km = mass_wts[5]/16000.0
-
-    cn2_wts = np.array([cn2_at_05km, cn2_at_1km, cn2_at_2km, cn2_at_4km,
-                        cn2_at_8km, cn2_at_16km])
-
-    c0 = mu0 - np.sum(cn2_wts)
-    wts = np.zeros(len(cn2_wts) + 1)
+    c0 = mu0 - np.sum(mass_wts)
+    cls = np.zeros(len(mass_wts) + 1)
     if normalize:
-        to_normalize = np.insert(cn2_wts, [0], c0)
+        to_normalize = np.insert(mass_wts, [0], c0)
         tot = np.sum(to_normalize)
 
         # Re-normalize turbulence weights with new ground layer entry
-        for i in range(len(wts)):
-            coeff = to_normalize[i]/tot
-            wts[i] = coeff
+        cls = to_normalize/tot
     else:
-        wts = np.insert(cn2_wts, [0], c0)
+        cls = np.insert(mass_wts, [0], c0)
 
-    return r0, wts
+    if plot:
+        hts = np.array([0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
+        plt.plot(hts, cls, "ro")
+        plt.title("Turbulence profile %s" % date)
+        plt.ylabel(r"c_{l} coefficients")
+        plt.xlabel("Height above telescope (meters)")
+        plt.show()
+        plt.savefig("turb_profile_%s" % date)
+
+    return r0, cls
 
 def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
     """
-    By Brooke DiGia
-
     Function to fetch the MASS and DIMM data that is closest to 
     the input timestamp.
 
@@ -1267,6 +1257,8 @@ def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
 
     mass_idx    : int
         Index where closest MASS data lies in MASS file
+
+    By Brooke DiGia
     """
     dimm_time_diff = abs(dimm_in_hrs - timestamp)
     mass_time_diff = abs(mass_in_hrs - timestamp)
@@ -1283,8 +1275,6 @@ def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
 
 def remove_keywords(file, *args):
     """
-    By Brooke DiGia
-
     Function to remove XSTREHL and YSTREHL keywords from input FITS file headers.
     E.g. to remove these keywords from the on-sky NIRC2 GC FITS files so that KAI's
     calc_strehl routine (modified MAOS version above) does not use these XSTREHL and
@@ -1302,6 +1292,8 @@ def remove_keywords(file, *args):
     Outputs:
     -----------
     None, input FITS file is revised in directory where it lives
+    
+    By Brooke DiGia
     """
     # Load header from input FITS file
     with fits.open(file) as fits_file:
@@ -1317,10 +1309,8 @@ def remove_keywords(file, *args):
             
     return
 
-def estimate_on_sky_conditions(file, masspro, dimmdat):
+def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False):
     """
-    By Brooke DiGia
-
     Function to take in the path to an on-sky .fits file (containing a PSF)
     and return an estimation of the atmospheric conditions present at the
     time of on-sky observation. The on-sky filename date and FITS header
@@ -1334,6 +1324,9 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
     file     : string
         Path to on-sky FITS file
 
+    plot     : boolean, default = False
+        Option to plot turbulence profile and save to current working directory
+
     masspro  : string
         Path to MASS data file for night of observation
 
@@ -1344,6 +1337,8 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
     ------------
     None, function prints results to terminal so that user can manually copy
     them to MAOS config files.
+    
+    By Brooke DiGia
     """
     with fits.open(file) as fits_file:
         hdu = fits_file[0]
@@ -1355,9 +1350,8 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
         year = date[:4]
         month = date[5:7]
         day = date[8:10]
-        # date_for_massdimm = year + month + day
-
-        """
+        date_for_massdimm = year + month + day
+        
         # Pull MASS and DIMM files corresponding to date of observation
         # if they are not already present in save_dir directory
         dimmdat = date_for_massdimm + ".dimm.dat"
@@ -1370,6 +1364,7 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
                 urllib.request.urlretrieve(url, save_dir + dimmdat)
             except Exception:
                 print(f"Error downloading {dimmdat} from {url}")
+                return
         
         # Reset url
         url = url_root + "masspro/" + masspro
@@ -1378,8 +1373,8 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
                 # Pull and save MASS file
                 urllib.request.urlretrieve(url, save_dir + masspro)
             except Exception:
-                print(f"Error downloading {dimmdat} from {url}")
-        """
+                print(f"Error downloading {masspro} from {url}")
+                return
 
         # Exposure time on this date, parsed into hour, minute, second (UT)
         expstart = hdr["EXPSTART"]
@@ -1474,11 +1469,14 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
               np.array(mass_profile_stop))
         
         # Estimate turbulence for beginning and end of exposure
-        # 10.5 is hard-coded KECK telescope diameter (meters)
-        r0_start, start_turb = estimate_turbulence(closest_dimm_start, 10.5, 
-                                                   mass_profile_start)
-        r0_end, end_turb = estimate_turbulence(closest_dimm_stop, 10.5, 
-                                               mass_profile_stop)
+        r0_start, start_turb = estimate_turbulence(closest_dimm_start, 
+                                                   mass_profile_start,
+                                                   date_for_massdimm, 
+                                                   plot)
+        r0_end, end_turb = estimate_turbulence(closest_dimm_stop, 
+                                               mass_profile_stop,
+                                               date_for_massdimm,
+                                               plot)
         # Average these two turbulence profiles together (we average due to potential
         # noise involved in the MASS/DIMM measurements)
         avg_turb = np.average((np.array(start_turb), np.array(end_turb)), axis=0)
@@ -1491,8 +1489,6 @@ def estimate_on_sky_conditions(file, masspro, dimmdat):
 def run_maos_sims(sim_dirs, top_configs, metrics_files, 
                   maos_plot=True, aper=0.3):
     """
-    By Brooke DiGia
-
     Function to run multiple MAOS simulations in terminal with
     various options.
 
@@ -1532,6 +1528,8 @@ def run_maos_sims(sim_dirs, top_configs, metrics_files,
     ------------
     None, simulation runs in terminal and results are written to output
     directory
+
+    By Brooke DiGia
     """
     # Change plotting options if user has turned them off
     plotall = 1
@@ -1573,7 +1571,6 @@ def run_maos_sims(sim_dirs, top_configs, metrics_files,
             except KeyboardInterrupt:
                 print("MAOS simulations interrupted. Aborting...")
                 return
-
     
         # After all simulations are run, fetch and display results
         for i in range(len(out_dirs)):
@@ -1581,23 +1578,237 @@ def run_maos_sims(sim_dirs, top_configs, metrics_files,
     
     return
 
+"""
+The following *_on_sky() functons are copied from the KAI repository, linked
+above in function headers, for use on on-sky PSF images. This is to keep the
+KAI pipeline unchanged in its own repository.
+"""
 
+def calc_strehl_on_sky(file_list, out_file, apersize=0.3, 
+                       instrument=instruments.default_inst,
+                       skysub=False):
+    """
+    Calculate the Strehl, FWHM, and RMS WFE for each image in a
+    list of files. The output is stored into the specified <out_file>
+    text file. The FWHM (and Strehl) is calculated over the specified
+    aperture size using a 2D gaussian fit. The Strehl is estimated by
+    taking the max pixel flux / wide-aperture flux and normalizing
+    by the same on a diffraction-limited image. Note that the diffraction
+    limited image comes from an external file.
 
+    The diffraction limited images come with the pipeline. For Keck, they are
+    all obtained empirically using the NIRC2 camera and filters and they
+    are sampled at 0.009952 arcsec / pixel. We will resample them as necessary.
+    We will play fast and loose with them and use them for both NIRC2 and OSIRIS.
+    They will be resampled as needed.
 
+    Inputs
+    ----------
+    file_list : list or array
+        The list of the file names.
 
+    out_file : str
+        The name of the output text file.
 
+    aper_size : float (def = 0.3 arcsec)
+        The aperture size over which to calculate the Strehl and FWHM.
 
+    skysub    : boolean (def = False)
+        Option to perform sky subtraction on input PSF
+    """
 
+    # Setup the output file and format.
+    _out = open(out_file, 'w')
 
+    fmt_hdr = '{img:<30s} {strehl:>7s} {rms:>7s} {fwhm:>7s}  {mjd:>10s}\n'
+    fmt_dat = '{img:<30s} {strehl:7.3f} {rms:7.1f} {fwhm:7.2f}  {mjd:10.4f}\n'
 
+    _out.write(fmt_hdr.format(img='#Filename', strehl='Strehl', rms='RMSwfe', 
+                              fwhm='FWHM', mjd='MJD'))
+    _out.write(fmt_hdr.format(img='#()', strehl='()', rms='(nm)', 
+                              fwhm='(mas)', mjd='(UT)'))
 
+    # Find the root directory where the calibration files live.
+    base_path = "/u/bdigia/code/python/KAI/kai"
+    cal_dir = base_path + '/data/diffrac_lim_img/' + instrument.telescope + '/'
 
+    # We are going to assume that everything in this list
+    # has the same camera, filter, plate scale, etc.
+    img0, hdr0 = fits.getdata(file_list[0], header=True)
+    filt = instrument.get_filter_name(hdr0)
+    scale = instrument.get_plate_scale(hdr0)
+    wavelength = instrument.get_central_wavelength(hdr0)
+    print("Filter = %s | Scale (arcsec/px) = %f | Wavelength (microns) = %f " % 
+          (filt, scale, wavelength))
 
+    # Get the diffraction limited image for this filter.
+    dl_img_file = cal_dir + filt.lower() + '.fits'
+    dl_img, dl_hdr = fits.getdata(dl_img_file, header=True)
 
+    # Get the DL image scale and re-scale it to match the science iamge.
+    if 'Keck' in instrument.telescope:
+        scale_dl = 0.009952  # Hard-coded
+    else:
+        scale_dl = dl_img['PIXSCALE']
+    rescale = scale_dl / scale
 
+    if rescale != 1:
+        dl_img = scipy.ndimage.zoom(dl_img, rescale, order=3)
 
+    # Pick appropriate radii for extraction.
+    # The diffraction limited resolution in pixels.
+    dl_res_in_pix = 0.25 * wavelength / (instrument.telescope_diam * scale)
+    radius = int(np.ceil(apersize / scale))
+    if radius < 3:
+        radius = 3
+    
+    # Perform some wide-aperture photometry on the diffraction-limited image.
+    # We will normalize our Strehl by this value. We will do the same on the
+    # data later on.
+    peak_coords_dl = np.unravel_index(np.argmax(dl_img, axis=None), dl_img.shape)
+    # Calculate the peak flux ratio
+    try:
+        dl_peak_flux_ratio = calc_peak_flux_ratio_on_sky(dl_img, peak_coords_dl, 
+                                                         radius, skysub)
 
+        # For each image, get the strehl, FWHM, RMS WFE, MJD, etc. and write to an
+        # output file. 
+        for ii in range(len(file_list)):
+            strehl, fwhm, rmswfe = calc_strehl_single_on_sky(file_list[ii], radius, 
+                                                             dl_peak_flux_ratio, 
+                                                             instrument=instrument, skysub=skysub)
+            mjd = fits.getval(file_list[ii], instrument.hdr_keys['mjd'])
+            dirname, filename = os.path.split(file_list[ii])
 
+            _out.write(fmt_dat.format(img=filename, strehl=strehl, rms=rmswfe, 
+                                      fwhm=fwhm, mjd=mjd))
+            print(fmt_dat.format(img=filename, strehl=strehl, rms=rmswfe, 
+                                 fwhm=fwhm, mjd=mjd))
+        _out.close()
+    except astropy.nddata.PartialOverlapError:
+        print("astropy.nddata.PartialOverlapError, failing gracefully...")
+        for ii in range(len(file_list)):
+            _out.write(fmt_dat.format(img=filename, strehl=-1.0, rms=-1.0, 
+                                      fwhm=-1.0, mjd=mjd))
+            print(fmt_dat.format(img=filename, strehl=-1.0, rms=-1.0, 
+                                 fwhm=-1.0, mjd=mjd))
+        _out.close()
+    return
 
+def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
+                              skysub, instrument=instruments.default_inst):
+    # Read in the image and header.
+    img, hdr = fits.getdata(img_file, header=True)
+    wavelength = instrument.get_central_wavelength(hdr) # microns
+    scale = instrument.get_plate_scale(hdr)
 
+    # Position of Strehl source
+    coords = np.array([img.shape[0]/2.0, img.shape[1]/2.0])
+
+    # Use Strehl source coordinates in the header, if available and recorded
+    if 'XSTREHL' in hdr:
+        print(hdr)
+        coords = np.array([float(hdr['XSTREHL']),
+                           float(hdr['YSTREHL'])])
+        coords -= 1     # Coordinate were 1 based; but python is 0 based.
+    
+    # Calculate the FWHM using a 2D gaussian fit. We will just average the two.
+    # To make this fit more robust, we will change our boxsize around, slowly
+    # shrinking it until we get a reasonable value.
+
+    # First estimate the DL FWHM in pixels. Use this to set the boxsize for
+    # the FWHM estimation... note that this is NOT the aperture size specified
+    # above which is only used for estimating the Strehl.
+    dl_res_in_pix = 0.25 * wavelength / (instrument.telescope_diam * scale)
+    fwhm_min = 0.9 * dl_res_in_pix
+    fwhm_max = 100
+    fwhm = 0.0
+    fwhm_boxsize = int(np.ceil((4 * dl_res_in_pix)))
+    if fwhm_boxsize < 3:
+        fwhm_boxsize = 3
+    pos_delta_max = 2*fwhm_min
+    box_scale = 1.0
+    iters = 0
+
+    # Steadily increase the boxsize until we get a reasonable FWHM estimate.
+    while ((fwhm < fwhm_min) or (fwhm > fwhm_max)) and (iters < 30):
+        box_scale += iters * 0.1
+        iters += 1
+        g2d = fit_gaussian2d(img, coords, fwhm_boxsize*box_scale,
+                             fwhm_min=0.8*fwhm_min, fwhm_max=fwhm_max,
+                             pos_delta_max=pos_delta_max)
+        sigma = (g2d.x_stddev_0.value + g2d.y_stddev_0.value) / 2.0
+        fwhm = stddev_to_fwhm(sigma)
+
+        print(img_file.split('/')[-1], iters, fwhm,
+                  g2d.x_mean_0.value, g2d.y_mean_0.value, fwhm_boxsize*box_scale)
+
+        # Update the coordinates if they are reasonable. 
+        if ((np.abs(g2d.x_mean_0.value - coords[0]) < fwhm_boxsize) and
+            (np.abs(g2d.y_mean_0.value - coords[1]) < fwhm_boxsize)):
+            coords = np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])
+
+    # Convert to milli-arcseconds
+    fwhm *= scale * 1e3
+
+    # Calculate the peak flux ratio
+    peak_flux_ratio = calc_peak_flux_ratio_on_sky(img, coords, radius, skysub)
+
+    # Normalize by the same from the DL image to get the Strehl.
+    strehl = peak_flux_ratio / dl_peak_flux_ratio
+    print('peak flux ratio = ', peak_flux_ratio, ' dl peak flux ratio = ', dl_peak_flux_ratio)
+
+    # Convert the Strehl to a RMS WFE using the Marechal approximation.
+    rms_wfe = np.sqrt( -1.0 * np.log(strehl)) * wavelength * 1.0e3 / (2. * math.pi)
+    
+    # Check final values and fail gracefully.
+    if ((strehl < 0) or (strehl > 1) or
+        (fwhm > 500) or (fwhm < (fwhm_min * scale * 1e3))):
+        strehl = -1.0
+        fwhm = -1.0
+        rms_wfe = -1.0
+
+    fmt_dat = '{img:<30s} {strehl:7.3f} {rms:7.1f} {fwhm:7.2f} {xpos:6.1f} {ypos:6.1f}\n'
+    print(fmt_dat.format(img=img_file, strehl=strehl, rms=rms_wfe, fwhm=fwhm, xpos=coords[0], ypos=coords[1]))
+    
+    return strehl, fwhm, rms_wfe
+
+def calc_peak_flux_ratio_on_sky(img, coords, radius, skysub):
+    """
+    img : 2D numpy array
+        The image on which to calculate the flux ratio of the peak to a 
+        wide-aperture.
+
+    coords : list or numpy array, length = 2
+        The x and y position of the source.
+
+    radius : int
+        The radius, in pixels, of the wide-aperture. 
+
+    skysub : boolean
+        Option to perform sky subtraction.
+
+    """
+    # Determine the peak flux
+    peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
+                                             img.data.shape)
+    peak_flux = img[peak_coords]
+    
+    # Calculate the Strehl by first finding the peak-pixel flux / wide-aperture flux.
+    # Then normalize by the same thing from the reference DL image. 
+    aper_sum = np.sum(img)
+
+    if skysub:
+        sky_rad_inn = radius + 20
+        sky_rad_out = radius + 30
+        sky_aper = CircularAnnulus(coords, sky_rad_inn, sky_rad_out)
+        sky_aper_out = aperture_photometry(img, sky_aper)
+        sky_aper_sum = sky_aper_out['aperture_sum'][0]
+
+        aper_sum -= sky_aper_sum
+
+    # Calculate the peak pixel flux / wide-aperture flux
+    peak_flux_ratio = peak_flux / aper_sum
+    
+    return peak_flux_ratio
 
