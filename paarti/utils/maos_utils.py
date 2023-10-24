@@ -1309,7 +1309,7 @@ def remove_keywords(file, *args):
             
     return
 
-def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False):
+def estimate_on_sky_conditions(file, saveto, plot=False):
     """
     Function to take in the path to an on-sky .fits file (containing a PSF)
     and return an estimation of the atmospheric conditions present at the
@@ -1324,14 +1324,11 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
     file     : string
         Path to on-sky FITS file
 
+    saveto   : string
+        Path of location to save MASS/DIMM data files
+
     plot     : boolean, default = False
         Option to plot turbulence profile and save to current working directory
-
-    masspro  : string
-        Path to MASS data file for night of observation
-
-    dimmdat  : string
-        Path to DIMM data file for night of observation
 
     Outputs:
     ------------
@@ -1361,9 +1358,10 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
         if not os.path.exists(dimmdat):
             try:
                 # Pull and save DIMM file
-                urllib.request.urlretrieve(url, save_dir + dimmdat)
-            except Exception:
-                print(f"Error downloading {dimmdat} from {url}")
+                urllib.request.urlretrieve(url, saveto + dimmdat)
+                print(f"{dimmdat} saved to {saveto}")
+            except Exception as error:
+                print(f"Error while downloading {dimmdat} from {url}:", type(error).__name__, error)
                 return
         
         # Reset url
@@ -1371,14 +1369,17 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
         if not os.path.exists(masspro):
             try:
                 # Pull and save MASS file
-                urllib.request.urlretrieve(url, save_dir + masspro)
+                urllib.request.urlretrieve(url, saveto + masspro)
+                print(f"{masspro} saved to {saveto}")
             except Exception:
-                print(f"Error downloading {masspro} from {url}")
+                print(f"Error while downloading {masspro} from {url}:", type(error).__name__, error)
                 return
 
         # Exposure time on this date, parsed into hour, minute, second (UT)
         expstart = hdr["EXPSTART"]
         expstop = hdr["EXPSTOP"]
+        print("Date of observation is  %s (UT)" % date)
+        print("Exposure time is\t%s to %s (UT)" % (expstart, expstop))
         expstart_hr = float(expstart[:2])
         expstart_min = float(expstart[3:5])
         expstart_sec = float(expstart[6:8])
@@ -1387,7 +1388,7 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
         expstop_sec = float(expstop[6:8])
         
         # Load in DIMM data and parse into individual arrays
-        dimm_table = read_csv(dimmdat, delim_whitespace=True, names=\
+        dimm_table = read_csv(saveto + dimmdat, delim_whitespace=True, names=\
                              ['year', 'month', 'day', 'hour', 'minute', 'second', \
                              'seeing'])
         dimm_yr = np.array(dimm_table['year'])
@@ -1410,7 +1411,7 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
                                   np.divide(dimm_sec, 3600.0))
 
         # Load in MASS data and parse into individual arrays
-        mass_table = read_csv(masspro, delim_whitespace=True, names=\
+        mass_table = read_csv(saveto + masspro, delim_whitespace=True, names=\
                              ['year', 'month', 'day', 'hour', 'minute', 'second', \
                               'cn2dh_05', 'cn2dh_1', 'cn2dh_2', 'cn2dh_4', \
                               'cn2dh_8', 'cn2dh_16', 'seeing'])
@@ -1450,8 +1451,16 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
         closest_dimm_start = dimm_seeing[i_dimm_start]
         closest_dimm_stop = dimm_seeing[i_dimm_stop]
         avg_dimm = (closest_dimm_start + closest_dimm_stop) / 2.0
-        print("Closest DIMM data to beginning of exposure:\t%0.4f" % closest_dimm_start)
-        print("Closest DIMM data to end of exposure:\t\t%0.4f" % closest_dimm_stop)
+        dimm_date_start = str(dimm_yr[i_dimm_start]) + ":" + str(dimm_mon[i_dimm_start]) \
+                        + ":" + str(dimm_day[i_dimm_start]) + ":" + str(dimm_hr[i_dimm_start]) \
+                        + ":" + str(dimm_min[i_dimm_start]) + ":" + str(dimm_sec[i_dimm_start])
+        dimm_date_stop = str(dimm_yr[i_dimm_stop]) + ":" + str(dimm_mon[i_dimm_stop]) \
+                       + ":" + str(dimm_day[i_dimm_stop]) + ":" + str(dimm_hr[i_dimm_stop]) \
+                       + ":" + str(dimm_min[i_dimm_stop]) + ":" + str(dimm_sec[i_dimm_stop])
+        print("Closest DIMM data to beginning of exposure:\t%0.4f\tat %s" % (closest_dimm_start, 
+                                                                             dimm_date_start))
+        print("Closest DIMM data to end of exposure:\t\t%0.4f\tat %s" % (closest_dimm_stop, 
+                                                                         dimm_date_stop))
         print("Average DIMM over exposure:\t\t\t%0.4f" % avg_dimm)
         
         # Some output formatting
@@ -1463,10 +1472,16 @@ def estimate_on_sky_conditions(file, plot=False):#, masspro, dimmdat, plot=False
         mass_profile_stop = [mass_cn2dh05[i_mass_stop], mass_cn2dh1[i_mass_stop],
                              mass_cn2dh2[i_mass_stop], mass_cn2dh4[i_mass_stop],
                              mass_cn2dh8[i_mass_stop], mass_cn2dh16[i_mass_stop]]
+        mass_date_start = str(mass_yr[i_mass_start]) + ":" + str(mass_mon[i_mass_start]) \
+                        + ":" + str(mass_day[i_mass_start]) + ":" + str(mass_hr[i_mass_start]) \
+                        + ":" + str(mass_min[i_mass_start]) + ":" + str(mass_sec[i_mass_start])
+        mass_date_stop = str(mass_yr[i_mass_stop])  + ":" + str(mass_mon[i_mass_stop]) \
+                       + ":" + str(mass_day[i_mass_stop]) + ":" + str(mass_hr[i_mass_stop]) \
+                       + ":" + str(mass_min[i_mass_stop]) + ":" + str(mass_sec[i_mass_stop])
         print("Closest MASS data to beginning of exposure: ", 
-              np.array(mass_profile_start))
+              np.array(mass_profile_start), "at ", mass_date_start)
         print("Closest MASS data to end of exposure:\t    ", 
-              np.array(mass_profile_stop))
+              np.array(mass_profile_stop), "at ", mass_date_stop)
         
         # Estimate turbulence for beginning and end of exposure
         r0_start, start_turb = estimate_turbulence(closest_dimm_start, 
