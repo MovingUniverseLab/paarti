@@ -1233,9 +1233,10 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
 
     return r0, cls
 
-def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
+def fetch_mass_dimm_cfht_loc(dimm_in_hrs, mass_in_hrs, 
+                             cfht_in_hrs, timestamp):
     """
-    Function to fetch the MASS and DIMM data that is closest to 
+    Function to fetch the MASS/DIMM/CFHT data that is closest to 
     the input timestamp.
 
     Inputs:
@@ -1246,9 +1247,12 @@ def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
     mass_in_hrs : float, array with length of data file
         MASS time data expressed in hours
 
+    cfht_in_hrs : float, variable length
+        CFHT time data expressed in hours
+
     timestamp   : float
-        Time for which to find the closest corresponding MASS and
-        DIMM data
+        Time for which to find the closest corresponding 
+        MASS/DIMM/CFHT data
 
     Outputs:
     ------------
@@ -1258,12 +1262,17 @@ def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
     mass_idx    : int
         Index where closest MASS data lies in MASS file
 
+    cfht_idx    : int
+        Index where closest CFHT data lies in input CFHT subset
+
     By Brooke DiGia
     """
     dimm_time_diff = abs(dimm_in_hrs - timestamp)
     mass_time_diff = abs(mass_in_hrs - timestamp)
+    cfht_time_diff = abs(cfht_in_hrs - timestamp)
     dimm_closest_idx = dimm_time_diff.argmin()
     mass_closest_idx = mass_time_diff.argmin()
+    cfht_closest_idx = cfht_time_diff.argmin()
 
     if dimm_time_diff[dimm_closest_idx] > 1.0:
         print("Could not locate DIMM data close to ", timestamp)
@@ -1271,15 +1280,19 @@ def fetch_mass_dimm_data_loc(dimm_in_hrs, mass_in_hrs, timestamp):
     if mass_time_diff[mass_closest_idx] > 1.0:
         print("Could not locate MASS data close to ", timestamp)
 
-    return dimm_closest_idx, mass_closest_idx
+    if cfht_time_diff[cfht_closest_idx] > 1.0:
+        print("Could not locate CFHT data close to ", timestamp)
+
+    return dimm_closest_idx, mass_closest_idx, cfht_closest_idx
 
 def remove_keywords(file, *args):
     """
-    Function to remove XSTREHL and YSTREHL keywords from input FITS file headers.
-    E.g. to remove these keywords from the on-sky NIRC2 GC FITS files so that KAI's
-    calc_strehl routine (modified MAOS version above) does not use these XSTREHL and
-    YSTREHL coordinates for source coordinates when input FITS files are PSFs (which
-    by definition are centered on the Strehl source).
+    Function to remove XSTREHL and YSTREHL keywords from input FITS 
+    file headers. E.g. to remove these keywords from the on-sky 
+    NIRC2 GC FITS files so that KAI's calc_strehl routine (modified 
+    MAOS version above) does not use these XSTREHL and YSTREHL 
+    coordinates for source coordinates when input FITS files are 
+    PSFs (which by definition are centered on the Strehl source).
 
     Inputs:
     -----------
@@ -1316,8 +1329,12 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
     time of on-sky observation. The on-sky filename date and FITS header
     exposure start/stop times are recorded in UT. The MASS and DIMM contents
     are recorded in local Hawaiian time (HST), so this function will convert
-    the exposure start/stop time to HST for use in searching the MASS/DIMM data
-    for the entry closest to the exposure time.
+    the MASS/DIMM data to UT. Likewise, the CFHT meteogram data is recorded
+    in HST, so that data will be converted as well. The PHTO Hilo data is
+    taken only twice per day, so this data does not need to be searched
+    for the entry closest to the FITS exposure time. Instead, we search
+    the PHTO data for the entries closest to the telescope heights
+    in the MAOS atm config file.
 
     Inputs:
     ------------
@@ -1328,7 +1345,8 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         Path of location to save MASS/DIMM data files
 
     plot     : boolean, default = False
-        Option to plot turbulence profile and save to current working directory
+        Option to plot turbulence profile and save to current working 
+        directory
 
     Outputs:
     ------------
@@ -1337,6 +1355,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
     
     By Brooke DiGia
     """
+    print("NOTE: Results for MAOS configuration files marked with ***\n")
     with fits.open(file) as fits_file:
         hdu = fits_file[0]
         psf = hdu.data
@@ -1361,9 +1380,12 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                 urllib.request.urlretrieve(url, saveto + dimmdat)
                 print(f"{dimmdat} saved to {saveto}")
             except Exception as error:
-                print(f"Error while downloading {dimmdat} from {url}:", type(error).__name__, error)
+                print(f"Error while downloading {dimmdat} from {url}:", 
+                      type(error).__name__, error)
                 return
-        
+        else:
+            print(f"{dimmdat} exists in directory {saveto}, not downloading.")
+
         # Reset url
         url = url_root + "masspro/" + masspro
         if not os.path.exists(masspro):
@@ -1372,14 +1394,46 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                 urllib.request.urlretrieve(url, saveto + masspro)
                 print(f"{masspro} saved to {saveto}")
             except Exception:
-                print(f"Error while downloading {masspro} from {url}:", type(error).__name__, error)
+                print(f"Error while downloading {masspro} from {url}:", 
+                      type(error).__name__, error)
                 return
+        else:
+            print(f"{masspro} exists in directory {saveto}, not downloading.")
+
+        # Pull CFHT data based on year of observation date
+        cfht_url = "http://mkwc.ifa.hawaii.edu/archive/wx/cfht/cfht-wx.%s.dat" % year
+        cfht = "cfht-wx.%s.dat" % year
+        if not os.path.exists(cfht):
+            try:
+                urllib.request.urlretrieve(cfht_url, saveto + cfht)
+                print(f"{cfht} saved to {saveto}")
+            except Exception as error:
+                print(f"Error while downloading {cfht} from {cfht_url}:",
+                      type(error).__name__, error)
+                return
+        else:
+            print(f"{cfht} exists in directory {saveto}, not downloading.")
+
+        # Pull PHTO station data based on year of observation date
+        phto_url = "http://weather.uwyo.edu/cgi-bin/sounding?region=naconf&TYPE=TEXT%3ALIST&YEAR=" + year + "&MONTH=" + month + "&FROM=" + day + "00&TO=" + day + "00&STNM=91285"
+
+        phto = "phto.%s.dat" % date_for_massdimm
+        if not os.path.exists(phto):
+            try:
+                urllib.request.urlretrieve(phto_url, saveto + phto)
+                print(f"{phto} saved to {saveto}")
+            except Exception as error:
+                print(f"Error while downloading {phto} from {phto_url}:",
+                      type(error).__name__, error)
+                return
+        else:
+            print(f"{phto} exists in directory {saveto}, not downloading.")
 
         # Exposure time on this date, parsed into hour, minute, second (UT)
         expstart = hdr["EXPSTART"]
         expstop = hdr["EXPSTOP"]
-        print("Date of observation is  %s (UT)" % date)
-        print("Exposure time is\t%s to %s (UT)" % (expstart, expstop))
+        print("\nDate of observation is  %s (UT)" % date)
+        print("Exposure time is\t%s to %s (UT)\n" % (expstart, expstop))
         expstart_hr = float(expstart[:2])
         expstart_min = float(expstart[3:5])
         expstart_sec = float(expstart[6:8])
@@ -1439,29 +1493,99 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         mass_time_in_hrs = np.add(mass_hr, np.divide(mass_min, 60.0),
                                   np.divide(mass_sec, 3600.0))
 
-        # Fetch MASS/DIMM data closest to exposure time
+        # Load in CFHT data and parse into individual arrays
+        cfht_table = read_csv(saveto + cfht, delim_whitespace=True, usecols=\
+                             [0, 1, 2, 3, 4, 5, 6], names=['year', 'month', \
+                                                           'day', 'hour', 'minute', \
+                                                           'wdspd', 'wddir'])
+        cfht_yr = np.array(cfht_table['year'])
+        cfht_mon = np.array(cfht_table['month'])
+        cfht_day = np.array(cfht_table['day'])
+        cfht_hr = np.array(cfht_table['hour'])
+        cfht_min = np.array(cfht_table['minute'])
+        # Convert wind speed in knots to m/s. 1 knot = 1852 m/hr
+        cfht_wdspd = np.array(cfht_table['wdspd']) * ( 1852.0 / (60.0 * 60.0) )
+        # Wind direction in degrees
+        cfht_wddir = np.array(cfht_table['wddir'])
+
+        # Convert CFHT data from HST to UT
+        cfht_hr += 10
+        idx = np.where(cfht_hr >= 24)[0]
+        cfht_day[idx] += 1
+        cfht_hr[idx] -= 24
+
+        # Extract CFHT data that corresponds to date of observation
+        # (CFHT data file contains data for the entire year, which we
+        # (do not need for one night of observation)
+        cfht_i = np.where( (cfht_mon == int(month)) & 
+                           (cfht_day == int(day)) )
+        cfht_yr = cfht_yr[cfht_i]
+        cfht_mon = cfht_mon[cfht_i]
+        cfht_day = cfht_day[cfht_i]
+        cfht_hr = cfht_hr[cfht_i]
+        cfht_min = cfht_min[cfht_i]
+        cfht_wdspd = cfht_wdspd[cfht_i]
+        cfht_wddir = cfht_wddir[cfht_i]
+
+        # Create array with CFHT time data in hours
+        cfht_time_in_hrs = np.add(cfht_hr, np.divide(cfht_min, 60.0))
+
+        # Load in PHTO data and parse into individual arrays
+        rows_to_skip = np.concatenate( (np.arange(0, 10), 
+                                        np.arange(125, 188)) )
+        phto_table = read_csv(saveto + phto, delim_whitespace=True, usecols=\
+                             [1, 6, 7], skiprows=rows_to_skip, 
+                             names=['hght', 'drct', 'sknt'])
+        phto_hghts = np.asarray(phto_table['hght'], dtype=float)
+        phto_wddir = np.array(phto_table['drct'])
+        phto_wdspd = np.array(phto_table['sknt']) * ( 1852.0 / (60.0 * 60.0) )
+
+        # PHTO heights are relative to sea level, but MAOS atm.ht is
+        # height above telescope, so we need to subtract the height
+        # of Keck (4145 m) from phto_hghts to convert to height
+        # above telescope
+        phto_hghts -= 4145.0
+        # Discard entries with negative heights
+        idx = np.where(phto_hghts > 0.0)[0]
+        phto_hghts = phto_hghts[idx]
+        # Find PHTO data closest to the following heights (meters)
+        heights = np.array([0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
+        phto_indices = np.zeros(len(heights), dtype=int)
+        for i in range(len(heights)):
+            phto_hght_diff = abs(phto_hghts - heights[i])            
+            phto_indices[i] = phto_hght_diff.argmin()
+
+        # Fetch MASS/DIMM/CFHT data closest to exposure time
         expstart_float = expstart_hr + (expstart_min/60.0) + (expstart_sec/3600.0)
         expstop_float = expstop_hr + (expstop_min/60.0) + (expstop_sec/3600.0)
-        i_dimm_start, i_mass_start = fetch_mass_dimm_data_loc(dimm_time_in_hrs, 
-                                                              mass_time_in_hrs,
-                                                              expstart_float)
-        i_dimm_stop, i_mass_stop = fetch_mass_dimm_data_loc(dimm_time_in_hrs,
-                                                            mass_time_in_hrs,
-                                                            expstop_float)
+        i_dimm_start, i_mass_start, i_cfht_start = fetch_mass_dimm_cfht_loc(dimm_time_in_hrs, 
+                                                                            mass_time_in_hrs, 
+                                                                            cfht_time_in_hrs,
+                                                                            expstart_float)
+        i_dimm_stop, i_mass_stop, i_cfht_stop = fetch_mass_dimm_cfht_loc(dimm_time_in_hrs,
+                                                                         mass_time_in_hrs, 
+                                                                         cfht_time_in_hrs,
+                                                                         expstop_float)
         closest_dimm_start = dimm_seeing[i_dimm_start]
         closest_dimm_stop = dimm_seeing[i_dimm_stop]
         avg_dimm = (closest_dimm_start + closest_dimm_stop) / 2.0
-        dimm_date_start = str(dimm_yr[i_dimm_start]) + ":" + str(dimm_mon[i_dimm_start]) \
-                        + ":" + str(dimm_day[i_dimm_start]) + ":" + str(dimm_hr[i_dimm_start]) \
-                        + ":" + str(dimm_min[i_dimm_start]) + ":" + str(dimm_sec[i_dimm_start])
-        dimm_date_stop = str(dimm_yr[i_dimm_stop]) + ":" + str(dimm_mon[i_dimm_stop]) \
-                       + ":" + str(dimm_day[i_dimm_stop]) + ":" + str(dimm_hr[i_dimm_stop]) \
-                       + ":" + str(dimm_min[i_dimm_stop]) + ":" + str(dimm_sec[i_dimm_stop])
-        print("Closest DIMM data to beginning of exposure:\t%0.4f\tat %s" % (closest_dimm_start, 
-                                                                             dimm_date_start))
-        print("Closest DIMM data to end of exposure:\t\t%0.4f\tat %s" % (closest_dimm_stop, 
-                                                                         dimm_date_stop))
-        print("Average DIMM over exposure:\t\t\t%0.4f" % avg_dimm)
+        dimm_date_start = str(dimm_yr[i_dimm_start]) \
+                          + ":" + str(dimm_mon[i_dimm_start]) \
+                          + ":" + str(dimm_day[i_dimm_start]) \
+                          + ":" + str(dimm_hr[i_dimm_start]) \
+                          + ":" + str(dimm_min[i_dimm_start]) \
+                          + ":" + str(dimm_sec[i_dimm_start])
+        dimm_date_stop = str(dimm_yr[i_dimm_stop]) \
+                         + ":" + str(dimm_mon[i_dimm_stop]) \
+                         + ":" + str(dimm_day[i_dimm_stop]) \
+                         + ":" + str(dimm_hr[i_dimm_stop]) \
+                         + ":" + str(dimm_min[i_dimm_stop]) \
+                         + ":" + str(dimm_sec[i_dimm_stop])
+        print("Closest DIMM data to beginning of exposure:\t%0.4f\tat %s" % 
+              (closest_dimm_start, dimm_date_start))
+        print("Closest DIMM data to end of exposure:\t\t%0.4f\tat %s" % 
+              (closest_dimm_stop, dimm_date_stop))
+        print("Average DIMM over exposure:\t\t\t%0.4f\n" % avg_dimm)
         
         # Some output formatting
         np.set_printoptions(precision=3)
@@ -1472,16 +1596,33 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         mass_profile_stop = [mass_cn2dh05[i_mass_stop], mass_cn2dh1[i_mass_stop],
                              mass_cn2dh2[i_mass_stop], mass_cn2dh4[i_mass_stop],
                              mass_cn2dh8[i_mass_stop], mass_cn2dh16[i_mass_stop]]
-        mass_date_start = str(mass_yr[i_mass_start]) + ":" + str(mass_mon[i_mass_start]) \
-                        + ":" + str(mass_day[i_mass_start]) + ":" + str(mass_hr[i_mass_start]) \
-                        + ":" + str(mass_min[i_mass_start]) + ":" + str(mass_sec[i_mass_start])
-        mass_date_stop = str(mass_yr[i_mass_stop])  + ":" + str(mass_mon[i_mass_stop]) \
-                       + ":" + str(mass_day[i_mass_stop]) + ":" + str(mass_hr[i_mass_stop]) \
-                       + ":" + str(mass_min[i_mass_stop]) + ":" + str(mass_sec[i_mass_stop])
+        mass_date_start = str(mass_yr[i_mass_start]) \
+                          + ":" + str(mass_mon[i_mass_start]) \
+                          + ":" + str(mass_day[i_mass_start]) \
+                          + ":" + str(mass_hr[i_mass_start]) \
+                          + ":" + str(mass_min[i_mass_start]) \
+                          + ":" + str(mass_sec[i_mass_start])
+        mass_date_stop = str(mass_yr[i_mass_stop]) \
+                         + ":" + str(mass_mon[i_mass_stop]) \
+                         + ":" + str(mass_day[i_mass_stop]) \
+                         + ":" + str(mass_hr[i_mass_stop]) \
+                         + ":" + str(mass_min[i_mass_stop]) \
+                         + ":" + str(mass_sec[i_mass_stop])
         print("Closest MASS data to beginning of exposure: ", 
               np.array(mass_profile_start), "at ", mass_date_start)
         print("Closest MASS data to end of exposure:\t    ", 
               np.array(mass_profile_stop), "at ", mass_date_stop)
+
+        cfht_date_start = str(cfht_yr[i_cfht_start]) \
+                          + ":" + str(cfht_mon[i_cfht_start]) \
+                          + ":" + str(cfht_day[i_cfht_start]) \
+                          + ":" + str(cfht_hr[i_cfht_start]) \
+                          + ":" + str(cfht_min[i_cfht_start])
+        cfht_date_stop = str(cfht_yr[i_cfht_stop]) \
+                         + ":" + str(cfht_mon[i_cfht_stop]) \
+                         + ":" + str(cfht_day[i_cfht_stop]) \
+                         + ":" + str(cfht_hr[i_cfht_stop]) \
+                         + ":" + str(cfht_min[i_cfht_stop])
         
         # Estimate turbulence for beginning and end of exposure
         r0_start, start_turb = estimate_turbulence(closest_dimm_start, 
@@ -1496,8 +1637,32 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         # noise involved in the MASS/DIMM measurements)
         avg_turb = np.average((np.array(start_turb), np.array(end_turb)), axis=0)
         avg_r0 = (r0_start + r0_end) / 2.0
-        print("*** Full turbulence profile:\t\t    ", avg_turb)
-        print("*** Fried parameter (m):\t\t\t%0.6f" % avg_r0)
+        print("\n*** Full turbulence profile:\t\t    ", avg_turb)
+        print("*** Fried parameter (m):\t\t\t%0.6f\n" % avg_r0)
+
+        # Average CFHT data across exposure to calculate ground layer wind speed
+        # and direction
+        cfht_wdspd_start = cfht_wdspd[i_cfht_start]
+        cfht_wddir_start = cfht_wddir[i_cfht_start]
+        cfht_wdspd_stop = cfht_wdspd[i_cfht_stop]
+        cfht_wddir_stop = cfht_wddir[i_cfht_stop]
+        print("Closest CFHT data to beginning of exposure: %0.4f (m/s) | %0.4f (deg) at %s" % 
+              (cfht_wdspd_start, cfht_wddir_start, cfht_date_start))
+        print("Closest CFHT data to end of exposure:\t    %0.4f (m/s) | %0.4f (deg) at %s\n" %
+              (cfht_wdspd_stop, cfht_wddir_stop, cfht_date_stop))
+
+        avg_grnd_wdspd = ( cfht_wdspd_start + cfht_wdspd_stop ) / 2.0
+        avg_grnd_wddir = ( cfht_wddir_start + cfht_wddir_stop ) / 2.0
+        free_atm_wdspd = phto_wdspd[phto_indices]
+        free_atm_wddir = phto_wddir[phto_indices]
+        wind_spd_profile = np.concatenate( (np.array([avg_grnd_wdspd]), 
+                                                     free_atm_wdspd) )
+        wind_dir_profile = np.concatenate( (np.array([avg_grnd_wddir]), 
+                                                     free_atm_wddir) )
+        print("Free atm wind speed/direction profiles taken at these heights:", 
+              phto_hghts[phto_indices])
+        print("*** Full wind speed profile (m/s): ", wind_spd_profile)
+        print("*** Full wind direction profile (deg): ", wind_dir_profile)
         
     return
 
@@ -1582,6 +1747,7 @@ def run_maos_sims(sim_dirs, top_configs, metrics_files,
             print("Running %s" % maos_cmd)
             print("Simulation results will be stored in %s\n" % out_dirs[i])
             try:
+                os.system(f"maos atm.r0z=0.111")
                 os.system(maos_cmd)
             except KeyboardInterrupt:
                 print("MAOS simulations interrupted. Aborting...")
