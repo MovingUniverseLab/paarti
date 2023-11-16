@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import os
 import pdb
 import urllib
+import requests
 from pandas import read_csv
 from kai import instruments
 
@@ -34,7 +35,6 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 8.5 	10.0	1   	0.1 	nd1 	0
 6.0 	8.5 	1   	0.1 	nd2 	0
 0.0 	6.0 	1   	0.1 	nd3 	0"""
-
 
 def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     """
@@ -67,8 +67,8 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     Nb             : float
         Number of photons (or e-) from background per pixel
 
-    Notes
-    -----
+    Notes:
+    ------
     
     By Matthew Freeman and Paolo Turri, modified by Brooke DiGia
 
@@ -261,41 +261,57 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     """
     Inputs:
     ----------
-    wfs : str
+    wfs         : str
         Arbitrary string name of WFS for printouts. Note there is one
         override if "LGSWFS" is in your wfs name, then it resets the
         number of background photons to 6 rather than taking the sky
         background. This is presumably from some Rayleigh backscatter
         of the laser spot.  This probably needs to be fixed.
 
-    side : float
-        Side of a sub-aperture in meters.
+    side        : float
+        Side of a sub-aperture in meters
 
-    throughput : float
+    throughput  : float
         Fractional throughput (0-1) of whole telescope + WFS system
 
-    ps : float
-        Plate scale in arcsec / pixel on the WFS.
+    ps          : float
+        Plate scale in arcsec / pixel on the WFS
 
-    theta_beta : float
+    theta_beta  : float
         Spot size on sub-aperture in units of radians. For LGS spots, use
         (1.5'' * pi /180) / (60*60)
 
-    band : str
+    band        : str
         Filter used for WFSing. This is used to determine the sky background
-        flux contributing to each sub-aperutre. 
+        flux contributing to each sub-aperture 
 
-    sigma_e : float
-        Readnoise in electrons.
+    sigma_e     : float
+        Readnoise in electrons
 
-    pix_per_ap : int
-        Number of pixels per sub-aperture.
+    pix_per_ap  : int
+        Number of pixels per sub-aperture
 
-    time : float
-        Integration time of the WFS in unit of seconds.
+    time        : float
+        Integration time of the WFS in unit of seconds
 
-    m : float
-        Magnitude of the guide star in the specified filter. 
+    m           : float
+        Magnitude of the guide star in the specified filter
+
+    Outputs:
+    ----------
+    SNR         : float
+        Signal-to-noise ratio
+
+    sigma_theta : float
+        Noise-equivalent angle in milliarcsec
+ 
+    Np          : float
+        Number of photons from the star per pixel within
+        subaperture
+
+    Nb          : float
+        Number of background photons per pixel within
+        subaperture
     """
     print('Assumptions:')
     print(f'  Wave-Front Sensor       = {wfs}')
@@ -313,9 +329,14 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     # Calculate number of photons and background photons
     Np, Nb = n_photons(side, time, m, band, ps, throughput)
 
+    """
     # Fix LGS background
     if 'LGSWFS' in wfs:
-        Nb = 6
+        # Convert 6 background photons per subaperture to
+        # background per pixel (4 pixels per subaperture,
+        # quadcell)
+        Nb = 6.0 * (1.0/4.0)
+    """
 
     # # area of supaperture        
     # A_sa = side**2
@@ -336,9 +357,9 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
 
     print('Outputs:')
     print(f"  N_photons from star (powfs.siglev for MAOS config): {Np:.3f}")
-    print(f"  N_photons per pixel from background:   {Nb:.3f}")
+    print(f"  N_photons per pixel from background (powfs.bkgrnd):   {Nb:.3f}")
     print(f"  SNR:                                   {SNR:.3f}")
-    print(f"  NEA (powfs.nearecon for MAOS config): {sigma_theta:.3f} mas")
+    print(f"  NEA (powfs.nearecon): {sigma_theta:.3f} mas")
     
     return SNR, sigma_theta, Np, Nb
     
@@ -447,6 +468,7 @@ def keck_ttmag_to_itime(ttmag, wfs='strap'):
 
     # Fetch the integration time. 
     itime = tab['Integ'][idx[0]]
+    
     return itime
 
 def print_wfe_metrics(directory='./', seed=10):
@@ -724,32 +746,41 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
 
     Inputs:
     ------------
-    sim_dir   : str
+    sim_dir          : str
         The directory where the MAOS simulation results live
 
-    sim_seed  : int, default = 1
+    sim_seed         : int, default = 1
         The seed passed to MAOS for running the simulation
 
-    out_file  : str
+    out_file         : str
         The name of the output text file
 
-    skysub    : boolean, default = False
+    skysub           : boolean, default = False
         True to perform sky subtraction on PSF. Should be False for MAOS
         PSFs
 
-    aper_size : float, default = 0.3 arcsec
+    aper_size        : float, default = 0.3 arcsec
         The aperture size over which to calculate the Strehl and FWHM
 
     Outputs:
     ------------
-    None, function writes to user-specified output text file and prints
+    strehl_to_return : array, len(nwvl), dtype=float
+        Strehl values at each wavelength for which MAOS was run
+
+    fwhm_to_return   : array, len(nwvl), dtype=float
+        FWHM values at each wavelength
+
+    rmswfe_to_return : array, len(nwvl), dtype=float
+        RMS WFE values at each wavelength
+
+    Function writes to user-specified output text file and prints
     results to terminal
     """
     # Setup the output file and format.
     _out = open(out_file, 'w')
 
     fmt_hdr = '{img:<3s} {strehl:>10s} {rms:>7s} {fwhm:>7s}\n'
-    fmt_dat = '{img:<3f}\t{strehl:10.6f}\t{rms:7.1f}\t\t{fwhm:7.2f}\n'
+    fmt_dat = '{img:<3f} {strehl:10.6f} {rms:7.1f} {fwhm:7.2f}\n'
     
     _out.write(fmt_hdr.format(img='Wavelength', strehl='Strehl', rms='RMSwfe', 
                               fwhm='FWHM'))
@@ -767,8 +798,11 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
     dl_all_wvls = fits.open(dl_img_files[0])
 
     # Loop over the MAOS PSF stack to calculate metrics
-    print("Lambda (micron)  Strehl\t\tRMS WFE (nm)\tFWHM (mas)")
+    print("Lambda (micron) | Strehl | RMS WFE (nm) | FWHM (mas)")
     print("----------------------------------------------------------------")
+    strehl_to_return = np.zeros(nwvl)
+    fwhm_to_return = np.zeros(nwvl)
+    rmswfe_to_return = np.zeros(nwvl)
     for i in range(nwvl):
         # Pull current PSF and DL image from stack
         psf = psf_all_wvls[i].data
@@ -785,7 +819,7 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
 
         # Check that DL wavelength and PSF wavelength are matched
         if dl_lambda != psf_lambda:
-            print("Error: PSF wavelength does not match DL image wavelength.")
+            print("Error: PSF wavelength does not match DL wavelength.")
             _out.close()
             return
 
@@ -815,15 +849,27 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
         strehl, fwhm, rmswfe = calc_strehl_single(sim_dir, psf, hdr, 
                                                   radius, skysub, 
                                                   dl_peak_flux_ratio)
+        strehl_to_return[i] = strehl
+        fwhm_to_return[i] = fwhm
+        rmswfe_to_return[i] = rmswfe
+
         _out.write(fmt_dat.format(img=psf_lambda, strehl=strehl, 
                                   rms=rmswfe, fwhm=fwhm))
         print(fmt_dat.format(img=psf_lambda, strehl=strehl, 
                              rms=rmswfe, fwhm=fwhm), end="")
         print(">> PSF peak flux value: %0.6f\n" % psf.max())
 
+        """
+        # For plotting purposes:
+        if psf_lambda == 2.12:
+            plt.figure()
+            plt.imshow(dl_img)
+            plt.savefig("/u/bdigia/work/ao/single_psfs/good_run_psfs/test_maos_dl_plot.pdf")
+        """
+
     # Close output file
     _out.close()
-    return
+    return strehl_to_return, fwhm_to_return, rmswfe_to_return
 
 def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
     """
@@ -1102,7 +1148,7 @@ def fwhm_to_stddev(fwhm):
     sigma : float
         Standard deviation
     """
-    sigma = fwhm/( 2 * math.sqrt( 2 * math.log(2) ) )
+    sigma = fwhm / ( 2.0 * math.sqrt( 2.0 * math.log(2.0) ) )
     return sigma
 
 def stddev_to_fwhm(stddev):
@@ -1120,7 +1166,7 @@ def stddev_to_fwhm(stddev):
     fwhm   : float
         Full-width at half-maximum
     """
-    fwhm = 2 * math.sqrt( 2 * math.log(2) ) * stddev
+    fwhm = 2.0 * math.sqrt( 2.0 * math.log(2.0) ) * stddev
     return fwhm 
 
 def fried(DIMM, wvl=500):
@@ -1338,20 +1384,29 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
 
     Inputs:
     ------------
-    file     : string
+    file             : string
         Path to on-sky FITS file
 
-    saveto   : string
+    saveto           : string
         Path of location to save MASS/DIMM data files
 
-    plot     : boolean, default = False
+    plot             : boolean, default = False
         Option to plot turbulence profile and save to current working 
         directory
 
     Outputs:
     ------------
-    None, function prints results to terminal so that user can manually copy
-    them to MAOS config files.
+    avg_r0           : float
+        Averaged Fried parameter in meters
+
+    full_turb        : array, len=7, dtype=float
+        Full turbulence profile (ground layer + free atmosphere)
+
+    wind_spd_profile : array, len=7, dtype=float
+        Full wind speed profile
+
+    wind_dir_profile : array, len=7, dtype=float
+        Full wind direction profile
     
     By Brooke DiGia
     """
@@ -1421,11 +1476,13 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         if not os.path.exists(phto):
             try:
                 urllib.request.urlretrieve(phto_url, saveto + phto)
+                # page = requests.get(phto_url)
+                # contents = page.text
                 print(f"{phto} saved to {saveto}")
             except Exception as error:
                 print(f"Error while downloading {phto} from {phto_url}:",
                       type(error).__name__, error)
-                return
+                #return
         else:
             print(f"{phto} exists in directory {saveto}, not downloading.")
 
@@ -1532,7 +1589,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
 
         # Load in PHTO data and parse into individual arrays
         rows_to_skip = np.concatenate( (np.arange(0, 10), 
-                                        np.arange(125, 188)) )
+                                        np.arange(145, 207)) )
         phto_table = read_csv(saveto + phto, delim_whitespace=True, usecols=\
                              [1, 6, 7], skiprows=rows_to_skip, 
                              names=['hght', 'drct', 'sknt'])
@@ -1548,8 +1605,8 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         # Discard entries with negative heights
         idx = np.where(phto_hghts > 0.0)[0]
         phto_hghts = phto_hghts[idx]
-        # Find PHTO data closest to the following heights (meters)
-        heights = np.array([0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
+        # Find PHTO data closest to the following heights (meters); ground layer (0.0 m) calculated with CFHT data
+        heights = np.array([500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
         phto_indices = np.zeros(len(heights), dtype=int)
         for i in range(len(heights)):
             phto_hght_diff = abs(phto_hghts - heights[i])            
@@ -1664,7 +1721,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         print("*** Full wind speed profile (m/s): ", wind_spd_profile)
         print("*** Full wind direction profile (deg): ", wind_dir_profile)
         
-    return
+    return avg_r0, avg_turb, wind_spd_profile, wind_dir_profile
 
 def run_maos_sims(sim_dirs, top_configs, metrics_files, 
                   maos_plot=True, aper=0.3):
@@ -1743,12 +1800,19 @@ def run_maos_sims(sim_dirs, top_configs, metrics_files,
                 print("Moving CWD to MAOS simulation directory...")
                 os.chdir(sim_dirs[i])
 
-            maos_cmd = f"maos -o {out_dirs[i]} -c {top_configs[i]} plot.all={plotall} plot.setup={plotsetup} -O"
+            on_sky_filename = sim_dirs[i][-6:-1] + "_psf.fits"
+            print(on_sky_filename)
+            on_sky_path = "/u/bdigia/work/ao/single_psfs/good_run_psfs/"
+            on_sky_file = on_sky_path + on_sky_filename
+
+            r0z, turbulence, wind_spd, wind_drct = estimate_on_sky_conditions(on_sky_file, on_sky_path)
+
+            maos_cmd = f"maos -o {out_dirs[i]} -c {top_configs[i]} plot.all={plotall} plot.setup={plotsetup} atm.r0z={r0z} atm.wt={turbulence} atm.ws={wind_spd} atm.wddeg={wind_drct} -O"
             print("Running %s" % maos_cmd)
             print("Simulation results will be stored in %s\n" % out_dirs[i])
             try:
-                os.system(f"maos atm.r0z=0.111")
-                os.system(maos_cmd)
+                # os.system(maos_cmd)
+                print(maos_cmd)
             except KeyboardInterrupt:
                 print("MAOS simulations interrupted. Aborting...")
                 return
@@ -1757,6 +1821,134 @@ def run_maos_sims(sim_dirs, top_configs, metrics_files,
         for i in range(len(out_dirs)):
             calc_strehl(out_dirs[i], metrics_files[i], skysub=False, apersize=aper)
     
+    return
+
+def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
+    """
+    Function to test multiple NCPA r0 and l0 parameter values, in comparison
+    to an on-sky Strehl quantity (currently hard-coded below). The best 
+    (r0, l0) combinations are determined via the input threshold.
+
+    Inputs:
+    ----------
+    r0s    : array, variable length, dtype=float
+        Array of NCPA surf r0 values for which to run MAOS base Keck simulation
+
+    l0s    : array, variable length, dtype=float
+        Array of NCPA surf l0 values for which to run MAOS base Keck simulation
+
+    on_sky : float
+        On-sky Strehl quantity for comparison
+
+    thres  : float, default = 0.05
+        Threshold for determining if a phase screen is "best" for output
+
+    Outputs:
+    ----------
+    best  : array, variable length, 8-element tuples of floats
+        Array of best combinations of r0 and l0 and their corresponding
+        strehls, fwhms, and rmswfes
+
+    Also displays simulation results in terminal and writes output metrics to
+    text file defined below as "metrics_file" via the calc_strehl function
+
+    By Brooke DiGia
+    """
+    base_root = "/u/bdigia/work/ao/keck/maos/keck/base/"
+    best = []
+
+    for r0 in r0s:
+        for l0 in l0s:
+            # Set MAOS command based on current r0 and l0
+            maos_cmd = f"""maos -o A_keck_scao_lgs_gc_r0={r0}_l0={l0} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 surf = ["Keck_ncpa_rmswfe130nm.fits", "'r0={r0};l0={l0};ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"] -O"""
+
+            cwd = os.getcwd()
+            # Must be in MAOS simulation directory to run successfully
+            if cwd != base_root:
+                print("Current working directory (CWD) is %s" % cwd)
+                print("Moving CWD to MAOS simulation directory...\n")
+                os.chdir(base_root)
+
+            try:
+                os.system(maos_cmd)
+            except Exception as error:
+                print("Error running MAOS: ", error)
+                return
+
+    # After all simulations are run, fetch and display results
+    for r0 in r0s:
+        for l0 in l0s:
+            folder = f"A_keck_scao_lgs_gc_r0={r0}_l0={l0}"
+            metrics_file = base_root + folder + "_sim_results.txt"
+            sim_dir = base_root + folder + "/"
+            print(f"\n\n **** r0 = {r0} | l0 = {l0} ****")
+            strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, 
+                                                                 metrics_file, 
+                                                                 skysub=False, 
+                                                                 apersize=0.3)
+            # Currently comparing to on_sky only at 2.12 microns
+            delta_strehl = abs(on_sky[0] - strehl_array[-1])
+            delta_fwhm = abs(on_sky[1] - fwhm_array[-1])
+            delta_rmswfe = abs(on_sky[2] - rmswfe_array[-1])
+            if delta_strehl <= thres:
+                tuple = (r0, l0, strehl_array[-1], delta_strehl, fwhm_array[-1], delta_fwhm, rmswfe_array[-1], delta_rmswfe)
+                best.append(tuple)
+
+    # Sort resultant 'best' tuples based on delta Strehl values
+    best.sort(key=lambda tup: tup[3], reverse=True)
+    print("\n\n***** Best combinations *****")
+    print("r0 | l0 | Strehl | Delta Strehl | FWHM (mas) | Delta FWHM (mas) | RMS WFE (nm) | Delta RMS WFE (nm)")
+    
+    print(best)
+    return best
+
+def make_strehl_plot(maos_txts, saveto, file_suffix=".pdf"):
+    """
+    Function to take an array of MAOS simulation results
+    and plot the Strehl results at 2.12 microns versus the 
+    corresponding on-sky Strehl results (available at only
+    2.12 microns). 
+
+    Inputs:
+    ----------
+    maos_txts   : array, variable length, dtype=string
+        Array of MAOS simulation Strehl calculator output
+        text files containing results to plot.
+
+    saveto      : string
+        Location to save plot images
+
+    file_suffix : string, default=.pdf
+        File type for saving plot (PDF or PNG)
+
+    Outputs:
+    ----------
+    None, plot image (PDF or PNG) saved to desired output
+    folder
+
+    By Brooke DiGia
+    """
+    filename = "MAOS_Strehl_Plot"
+    on_sky = np.zeros(len(maos_txts))
+    maos = np.zeros(len(maos_txts))
+    on_sky_root = "/u/bdigia/work/ao/single_psfs/good_run_psfs/"
+
+    for i in range(len(maos_txts)):
+        frame = maos_txts[i][-9:-4]
+        on_sky = calc_strehl_on_sky([on_sky_root + frame + "_psf.fits"], 
+                                     on_sky_root + frame + "_GC_Strehl.txt", 
+                                     apersize=0.3)[0]
+        # Read in MAOS result at 2.12 microns only
+        table = read_csv(maos_txts[i], delim_whitespace=True, 
+                         skiprows=[0,1,2,3,4,5], usecols=[1], names=['strehl'])
+        print("TABLE")
+        print(table['strehl'])
+
+    plt.figure()
+    plt.xlabel("MAOS Strehl (calculated via PAARTI)")
+    plt.ylabel("On-Sky GC Strehl")
+    plt.plot(maos, on_sky, "bo")
+    plt.savefig(saveto + filename + file_suffix)
     return
 
 """
@@ -1847,17 +2039,22 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
     # We will normalize our Strehl by this value. We will do the same on the
     # data later on.
     peak_coords_dl = np.unravel_index(np.argmax(dl_img, axis=None), dl_img.shape)
+    plt.figure()
+    plt.imshow(dl_img)
+    plt.savefig("/u/bdigia/work/ao/single_psfs/good_run_psfs/test_on_sky_dl_plot.pdf")
     # Calculate the peak flux ratio
     try:
         dl_peak_flux_ratio = calc_peak_flux_ratio_on_sky(dl_img, peak_coords_dl, 
                                                          radius, skysub)
-
+        print("dl_peak_flux_ratio:", dl_peak_flux_ratio)
         # For each image, get the strehl, FWHM, RMS WFE, MJD, etc. and write to an
-        # output file. 
+        # output file.
+        strehls = []
         for ii in range(len(file_list)):
             strehl, fwhm, rmswfe = calc_strehl_single_on_sky(file_list[ii], radius, 
                                                              dl_peak_flux_ratio, 
                                                              instrument=instrument, skysub=skysub)
+            strehls.append(strehl)
             mjd = fits.getval(file_list[ii], instrument.hdr_keys['mjd'])
             dirname, filename = os.path.split(file_list[ii])
 
@@ -1874,7 +2071,7 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
             print(fmt_dat.format(img=filename, strehl=-1.0, rms=-1.0, 
                                  fwhm=-1.0, mjd=mjd))
         _out.close()
-    return
+    return strehls
 
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
                               skysub, instrument=instruments.default_inst):
