@@ -18,7 +18,6 @@ import pdb
 import urllib
 import requests
 from pandas import read_csv
-from kai import instruments
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
 MinMag  MaxMag  Integ   Gain	SFW 	Sky
@@ -1958,7 +1957,7 @@ KAI pipeline unchanged in its own repository.
 """
 
 def calc_strehl_on_sky(file_list, out_file, apersize=0.3, 
-                       instrument=instruments.default_inst,
+                       instrument=None,
                        skysub=False):
     """
     Calculate the Strehl, FWHM, and RMS WFE for each image in a
@@ -1989,6 +1988,9 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
     skysub    : boolean (def = False)
         Option to perform sky subtraction on input PSF
     """
+    from kai import instruments
+    if instrument is None:
+        instruments.default_inst
 
     # Setup the output file and format.
     _out = open(out_file, 'w')
@@ -2075,6 +2077,11 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
 
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
                               skysub, instrument=instruments.default_inst):
+
+
+    from kai import instruments
+    if instrument is None:
+        instruments.default_inst    
     # Read in the image and header.
     img, hdr = fits.getdata(img_file, header=True)
     wavelength = instrument.get_central_wavelength(hdr) # microns
