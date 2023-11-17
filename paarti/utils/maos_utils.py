@@ -2076,7 +2076,7 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
     return strehls
 
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
-                              skysub, instrument=instruments.default_inst):
+                              skysub, instrument=None):
 
 
     from kai import instruments
