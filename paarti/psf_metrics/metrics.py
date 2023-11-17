@@ -200,9 +200,24 @@ def calc_psf_metrics_single(psf, pixel_scale, oversamp=1, cut_radius=20):
 
     # Find the 50% and 80% EE values.
     # This is in oversampled pixels.
-    ee25_rad = radii_pix[ np.where(enc_energy >= 0.25)[0][0]]
-    ee50_rad = radii_pix[ np.where(enc_energy >= 0.5)[0][0] ]
-    ee80_rad = radii_pix[ np.where(enc_energy >= 0.8)[0][0] ]
+    ii25 = np.where(enc_energy >= 0.25)[0]
+    if len(ii25) > 0:
+        ee25_rad = radii_pix[ ii25[0] ]
+    else:
+        ee25_rad = np.nan
+        
+    ii50 = np.where(enc_energy >= 0.50)[0]
+    if len(ii50) > 0:
+        ee50_rad = radii_pix[ ii50[0] ]
+    else:
+        ee50_rad = np.nan
+
+    ii80 = np.where(enc_energy >= 0.8)[0]
+    if len(ii80) > 0:
+        ee80_rad = radii_pix[ ii80[0] ]
+    else:
+        ee80_rad = np.nan
+
 
     # Find the median NEA in oversampled pixel^2.
     nea2 = 1.0 / int_psf2
