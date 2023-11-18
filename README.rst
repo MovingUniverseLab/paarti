@@ -10,7 +10,7 @@ PSFs with AO for Astronomical Research, Testing, and Instrumentation
 
 If you have questions or issues with the package, please contact Jessica Lu at `jlu.astro@berkeley.edu <mailto:jlu.astro@berkeley.edu>`__.
 
-All documentation to use PAARTI can be found under the `docs <docs/index.rst>`__ directory.
+All documentation to use PAARTI can be found on the associated `paarti GitHub Pages site <https://movinguniverselab.github.io/paarti/>`__.
 
 Installation
 ============
@@ -33,6 +33,9 @@ Developers
 - Sanchit Sabhlok
 - Sean Terry
 - Paolo Turri
+- Max Millar-Blanchaer
+- Brooke DiGia
+- Brianna Peck
 
 License
 =======
