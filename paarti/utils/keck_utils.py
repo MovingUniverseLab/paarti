@@ -9,9 +9,6 @@ from astropy.table import Table
 import astropy.units as u
 import os
 
-# import readbin from MAOS
-import readbin
-
 def make_keck_vib_psd():
     """
     Prepare a Keck wind-shake and vibration PSD modeled after an

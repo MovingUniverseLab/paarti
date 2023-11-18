@@ -9,7 +9,6 @@ import astropy
 from paarti.psf_metrics import metrics
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 import glob
-import readbin
 from scipy import stats
 import scipy, scipy.misc, scipy.ndimage
 import matplotlib.pyplot as plt
@@ -491,6 +490,9 @@ def print_wfe_metrics(directory='./', seed=10):
     closed_mean_nm : array, len=3, dtype=float
         Array containing WFE metrics for closed-loop MAOS results
     """
+    # Import the MAOS readbin function
+    import readbin
+    
     results_file = f'{directory}Res_{seed}.bin'
     results = readbin.readbin(results_file)
     print("Looking in directory:", directory)
@@ -652,6 +654,8 @@ def read_maos_psd(psd_input_file, type='jitter'):
     psd            : array, dtype=float
         PSD array with units attached
     """
+    import readbin
+    
     if psd_input_file.endswith('fits'):
         psd_in = fits.getdata(psd_input_file)
     else:
