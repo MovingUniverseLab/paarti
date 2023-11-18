@@ -1,0 +1,6 @@
+calc_psf_metrics_single
+=======================
+
+.. currentmodule:: paarti.psf_metrics.metrics
+
+.. autofunction:: calc_psf_metrics_single

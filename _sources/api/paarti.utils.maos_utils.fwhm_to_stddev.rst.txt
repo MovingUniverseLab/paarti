@@ -1,0 +1,6 @@
+fwhm_to_stddev
+==============
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: fwhm_to_stddev

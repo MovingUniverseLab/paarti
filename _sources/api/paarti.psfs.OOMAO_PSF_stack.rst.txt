@@ -1,0 +1,7 @@
+OOMAO_PSF_stack
+===============
+
+.. currentmodule:: paarti.psfs
+
+.. autoclass:: OOMAO_PSF_stack
+   :show-inheritance:

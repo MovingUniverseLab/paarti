@@ -1,0 +1,17 @@
+MAOS_PSF_stack
+==============
+
+.. currentmodule:: paarti.psfs
+
+.. autoclass:: MAOS_PSF_stack
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~MAOS_PSF_stack.calc_metrics
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: calc_metrics

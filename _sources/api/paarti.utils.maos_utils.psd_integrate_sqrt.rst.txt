@@ -1,0 +1,6 @@
+psd_integrate_sqrt
+==================
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: psd_integrate_sqrt

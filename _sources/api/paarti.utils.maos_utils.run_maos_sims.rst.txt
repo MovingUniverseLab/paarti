@@ -1,0 +1,6 @@
+run_maos_sims
+=============
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: run_maos_sims

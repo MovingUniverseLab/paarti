@@ -1,0 +1,6 @@
+fetch_mass_dimm_cfht_loc
+========================
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: fetch_mass_dimm_cfht_loc

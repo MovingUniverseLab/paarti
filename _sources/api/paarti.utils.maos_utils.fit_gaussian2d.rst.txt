@@ -1,0 +1,6 @@
+fit_gaussian2d
+==============
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: fit_gaussian2d

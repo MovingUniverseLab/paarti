@@ -1,0 +1,6 @@
+n_photons
+=========
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: n_photons

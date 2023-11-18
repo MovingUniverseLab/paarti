@@ -1,0 +1,6 @@
+print_wfe_metrics
+=================
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: print_wfe_metrics

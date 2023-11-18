@@ -1,0 +1,6 @@
+fried
+=====
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: fried

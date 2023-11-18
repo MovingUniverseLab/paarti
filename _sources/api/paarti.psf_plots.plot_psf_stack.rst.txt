@@ -1,0 +1,6 @@
+plot_psf_stack
+==============
+
+.. currentmodule:: paarti.psf_plots
+
+.. autofunction:: plot_psf_stack

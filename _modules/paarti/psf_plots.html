@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>paarti.psf_plots &#8212; paarti v0.1</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../_static/bootstrap-astropy.css?v=9d21690f" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=eafc0fe6" />
+    <link rel="stylesheet" type="text/css" href="../../_static/plot_directive.css" />
+    
+    <script src="../../_static/jquery.js?v=5d32c60e"></script>
+    <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+    <script src="../../_static/documentation_options.js?v=2709fde1"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../_static/copybutton.js"></script>
+    <link rel="icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">paarti</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">paarti v0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for paarti.psf_plots</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">colors</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pylab</span> <span class="k">as</span> <span class="nn">plt</span>
+
+
+<div class="viewcode-block" id="grid_psf">
+<a class="viewcode-back" href="../../api/paarti.psf_plots.grid_psf.html#paarti.psf_plots.grid_psf">[docs]</a>
+<span class="k">def</span> <span class="nf">grid_psf</span><span class="p">(</span><span class="n">psf</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">zoom</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;range&#39;</span><span class="p">,</span>
+             <span class="n">linthresh</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Show a regular square grid of PSFs.</span>
+<span class="sd">    If the color coverage is &#39;zero&#39; and the color scale is &#39;log&#39;, a symmetric</span>
+<span class="sd">    logarithmic colormap normalization is used.</span>
+
+<span class="sd">    Inputs:</span>
+<span class="sd">    -------</span>
+<span class="sd">    psf: psfs.PSF_stack</span>
+<span class="sd">        PSF grid</span>
+
+<span class="sd">    Optional Inputs:</span>
+<span class="sd">    ----------------</span>
+<span class="sd">    side: int or None</span>
+<span class="sd">        Number of PSFs to show on each side of the grid (less than</span>
+<span class="sd">        or equal to sqrt(n)). The first and last PSF of each column is</span>
+<span class="sd">        always plotted. If &#39;None&#39;, all PSFs are shown.</span>
+<span class="sd">    zoom: float or None</span>
+<span class="sd">        Size of PSF box, in arcsec. If &#39;None&#39;, the full PSF is shown.</span>
+<span class="sd">    scale: str</span>
+<span class="sd">        Color scale. &#39;linear&#39; for linear, &#39;log&#39; for logarithmic</span>
+<span class="sd">    color: str</span>
+<span class="sd">        Color coverage (&#39;range&#39; for the full range of values,</span>
+<span class="sd">        &#39;zero&#39; for symmetric around 0). The first is useful to show a grid</span>
+<span class="sd">        of PSFs, the second to show the difference of PSFs.</span>
+<span class="sd">    linthresh: float</span>
+<span class="sd">        Threshold to color PSF values as zero if a symmetric</span>
+<span class="sd">        logarithmic scale is used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Prepare grid</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">psf</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">side</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">side</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+
+    <span class="n">n_side</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">))</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">(</span><span class="n">n_side</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">side</span><span class="p">)</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">pos</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">zoom</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">zoom_px</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">psf</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">zoom_px</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">zoom</span> <span class="o">/</span> <span class="n">psf</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">)</span>
+
+    <span class="n">zoom_px_min</span> <span class="o">=</span> <span class="p">(</span><span class="n">psf</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="n">zoom_px</span>
+    <span class="n">zoom_px_max</span> <span class="o">=</span> <span class="p">(</span><span class="n">psf</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">zoom_px</span>
+
+    <span class="c1"># Calculate color range</span>
+    <span class="n">psf_color</span> <span class="o">=</span> <span class="n">psf</span><span class="o">.</span><span class="n">psfs</span><span class="p">[:,</span> <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_min</span><span class="p">):</span> <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_max</span><span class="p">),</span>
+                         <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_min</span><span class="p">):</span> <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_max</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="n">color</span> <span class="o">==</span> <span class="s1">&#39;range&#39;</span><span class="p">:</span>
+        <span class="n">cmap_name</span> <span class="o">=</span> <span class="s1">&#39;hot&#39;</span>
+        <span class="n">psf_color_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">psf_color</span><span class="p">)</span>
+        <span class="n">psf_color_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">psf_color</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">scale</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">LogNorm</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cmap_name</span> <span class="o">=</span> <span class="s1">&#39;seismic&#39;</span>
+        <span class="n">psf_color_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">psf_color</span><span class="p">))</span>
+        <span class="n">psf_color_min</span> <span class="o">=</span> <span class="o">-</span><span class="n">psf_color_max</span>
+
+        <span class="k">if</span> <span class="n">scale</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">SymLogNorm</span><span class="p">(</span><span class="n">linthresh</span><span class="o">=</span><span class="n">linthresh</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span>
+                                     <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+
+    <span class="c1"># Plot</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i_row</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">side</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i_col</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">side</span><span class="p">):</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="n">psf</span><span class="o">.</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">pos</span><span class="p">[</span><span class="n">i_row</span><span class="p">])</span> <span class="o">&amp;</span>
+                           <span class="p">(</span><span class="n">psf</span><span class="o">.</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">pos</span><span class="p">[</span><span class="n">i_col</span><span class="p">]))[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="n">side</span><span class="p">,</span> <span class="n">side</span><span class="p">,</span> <span class="p">(((</span><span class="n">side</span> <span class="o">-</span> <span class="n">i_row</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">side</span><span class="p">)</span> <span class="o">+</span>
+                                     <span class="p">(</span><span class="n">i_col</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)))</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">psf</span><span class="o">.</span><span class="n">psfs</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">,</span>
+                       <span class="n">cmap</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">get_cmap</span><span class="p">(</span><span class="n">cmap_name</span><span class="p">),</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span>
+                       <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">([</span><span class="n">zoom_px_min</span><span class="p">,</span> <span class="n">zoom_px_max</span><span class="p">])</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">([</span><span class="n">zoom_px_min</span><span class="p">,</span> <span class="n">zoom_px_max</span><span class="p">])</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">bottom</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">labelbottom</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">labelleft</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="plot_psf_stack">
+<a class="viewcode-back" href="../../api/paarti.psf_plots.plot_psf_stack.html#paarti.psf_plots.plot_psf_stack">[docs]</a>
+<span class="k">def</span> <span class="nf">plot_psf_stack</span><span class="p">(</span><span class="n">psf_stack</span><span class="p">,</span> <span class="n">zoom</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">scale</span><span class="o">=</span><span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;range&#39;</span><span class="p">,</span> <span class="n">linthresh</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Show a regular square grid of PSFs.</span>
+<span class="sd">    If the color coverage is &#39;zero&#39; and the color scale is &#39;log&#39;, a symmetric</span>
+<span class="sd">    logarithmic colormap normalization is used.</span>
+
+<span class="sd">    Inputs:</span>
+<span class="sd">    -------</span>
+<span class="sd">    psf: psfs.PSF_stack</span>
+<span class="sd">        PSF grid</span>
+
+<span class="sd">    Optional Inputs:</span>
+<span class="sd">    ----------------</span>
+<span class="sd">    side: int or None</span>
+<span class="sd">        Number of PSFs to show on each side of the grid (less than</span>
+<span class="sd">        or equal to sqrt(n)). The first and last PSF of each column is</span>
+<span class="sd">        always plotted. If &#39;None&#39;, all PSFs are shown.</span>
+<span class="sd">    zoom: float or None</span>
+<span class="sd">        Size of PSF box, in arcsec. If &#39;None&#39;, the full PSF is shown.</span>
+<span class="sd">    scale: str</span>
+<span class="sd">        Color scale. &#39;linear&#39; for linear, &#39;log&#39; for logarithmic</span>
+<span class="sd">    color: str</span>
+<span class="sd">        Color coverage (&#39;range&#39; for the full range of values,</span>
+<span class="sd">        &#39;zero&#39; for symmetric around 0). The first is useful to show a grid</span>
+<span class="sd">        of PSFs, the second to show the difference of PSFs.</span>
+<span class="sd">    linthresh: float</span>
+<span class="sd">        Threshold to color PSF values as zero if a symmetric</span>
+<span class="sd">        logarithmic scale is used.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Prepare grid</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">pos</span>
+
+    <span class="n">zoom_px</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">psf_stack</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">((</span><span class="n">zoom</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span>
+        <span class="p">((</span><span class="n">zoom</span> <span class="o">/</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">zoom_px</span><span class="p">)):</span>
+        <span class="n">zoom_px</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">zoom</span> <span class="o">/</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">pixel_scale</span><span class="p">)</span>
+
+    <span class="n">zoom_px_min</span> <span class="o">=</span> <span class="p">(</span><span class="n">psf_stack</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="n">zoom_px</span>
+    <span class="n">zoom_px_max</span> <span class="o">=</span> <span class="p">(</span><span class="n">psf_stack</span><span class="o">.</span><span class="n">psfs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">zoom_px</span>
+
+    <span class="c1"># Calculate color range</span>
+    <span class="n">psf_color</span> <span class="o">=</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">psfs</span><span class="p">[:,</span>
+                               <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_min</span><span class="p">):</span> <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_max</span><span class="p">),</span>
+                               <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_min</span><span class="p">):</span> <span class="nb">int</span><span class="p">(</span><span class="n">zoom_px_max</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="n">color</span> <span class="o">==</span> <span class="s1">&#39;range&#39;</span><span class="p">:</span>
+        <span class="n">cmap_name</span> <span class="o">=</span> <span class="s1">&#39;hot_r&#39;</span>
+        <span class="n">psf_color_min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">psf_color</span><span class="p">)</span>
+        <span class="n">psf_color_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">psf_color</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">scale</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">LogNorm</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cmap_name</span> <span class="o">=</span> <span class="s1">&#39;seismic_r&#39;</span>
+        <span class="n">psf_color_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">psf_color</span><span class="p">))</span>
+        <span class="n">psf_color_min</span> <span class="o">=</span> <span class="o">-</span><span class="n">psf_color_max</span>
+
+        <span class="k">if</span> <span class="n">scale</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">SymLogNorm</span><span class="p">(</span><span class="n">linthresh</span><span class="o">=</span><span class="n">linthresh</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span>
+                                     <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">colors</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">psf_color_min</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">psf_color_max</span><span class="p">)</span>
+
+            
+    <span class="c1"># Figure out how big we should make each PSF.</span>
+    <span class="c1"># We will simply use the sqrt of the number of PSFs to</span>
+    <span class="c1"># approximate. This works well for a square grid. </span>
+    <span class="n">n_psfs_side</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n</span><span class="o">**</span><span class="mf">0.5</span><span class="p">)</span>
+
+    <span class="c1"># Setup the boundaries of the PSF boxes (leave room for axis labels).</span>
+    <span class="n">plot_box_size</span> <span class="o">=</span> <span class="mf">0.85</span>
+    <span class="n">xlo</span> <span class="o">=</span> <span class="mf">0.1</span>
+    <span class="n">xhi</span> <span class="o">=</span> <span class="n">xlo</span> <span class="o">+</span> <span class="n">plot_box_size</span>
+    <span class="n">ylo</span> <span class="o">=</span> <span class="mf">0.05</span>
+    <span class="n">yhi</span> <span class="o">=</span> <span class="n">ylo</span> <span class="o">+</span> <span class="n">plot_box_size</span>
+
+    <span class="n">box_scale</span> <span class="o">=</span> <span class="mf">0.95</span>
+    <span class="n">psf_axes_size</span> <span class="o">=</span> <span class="p">(</span><span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">n_psfs_side</span><span class="p">)</span> <span class="o">*</span> <span class="n">box_scale</span>
+    <span class="n">psf_box_size</span> <span class="o">=</span> <span class="n">n_psfs_side</span> <span class="o">*</span> <span class="n">psf_axes_size</span> <span class="c1"># does not include padding</span>
+    <span class="n">scale_param</span> <span class="o">=</span> <span class="n">n_psfs_side</span> <span class="o">/</span> <span class="p">(</span><span class="n">n_psfs_side</span> <span class="o">+</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Figure out the max and min positions on the sky to</span>
+    <span class="c1"># fit in all the PSFs.</span>
+    <span class="n">xpos_rng</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+    <span class="n">ypos_rng</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+    <span class="n">xpos_cen</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">ypos_cen</span> <span class="o">=</span> <span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">pos_rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">xpos_rng</span><span class="p">,</span> <span class="n">ypos_rng</span><span class="p">])</span>
+    <span class="n">pos_box_size</span> <span class="o">=</span> <span class="n">pos_rng</span> <span class="o">*</span> <span class="n">plot_box_size</span> <span class="o">*</span> <span class="n">box_scale</span> <span class="o">/</span> <span class="p">((</span><span class="n">n_psfs_side</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">psf_axes_size</span><span class="p">)</span>
+
+    <span class="c1"># Convert positions into figure coordinates. These will mark</span>
+    <span class="c1"># the center of the PSF boxes.</span>
+    <span class="n">xpos_min</span> <span class="o">=</span> <span class="n">xpos_cen</span> <span class="o">-</span> <span class="mf">0.5</span><span class="o">*</span><span class="n">pos_box_size</span>
+    <span class="n">ypos_min</span> <span class="o">=</span> <span class="n">ypos_cen</span> <span class="o">-</span> <span class="mf">0.5</span><span class="o">*</span><span class="n">pos_box_size</span>
+    
+    <span class="n">xpos_min_fig</span> <span class="o">=</span> <span class="n">xpos_min</span> <span class="o">*</span> <span class="p">(</span><span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">pos_box_size</span><span class="p">)</span>
+    <span class="n">xpos_min_fig</span> <span class="o">+=</span> <span class="n">xlo</span>
+    <span class="n">ypos_min_fig</span> <span class="o">=</span> <span class="n">ypos_min</span> <span class="o">*</span> <span class="p">(</span><span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">pos_box_size</span><span class="p">)</span>
+    <span class="n">ypos_min_fig</span> <span class="o">+=</span> <span class="n">ylo</span>
+
+    <span class="n">xpos_fig</span> <span class="o">=</span> <span class="p">(</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">xpos_min</span><span class="p">)</span> <span class="o">*</span> <span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">pos_box_size</span>
+    <span class="n">xpos_fig</span> <span class="o">+=</span> <span class="n">xlo</span>
+    <span class="n">ypos_fig</span> <span class="o">=</span> <span class="p">(</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">ypos_min</span><span class="p">)</span> <span class="o">*</span> <span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">pos_box_size</span>
+    <span class="n">ypos_fig</span> <span class="o">+=</span> <span class="n">ylo</span>
+    
+    <span class="c1"># Plot</span>
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">pp</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pos</span><span class="p">)):</span>
+        <span class="n">xfig</span> <span class="o">=</span> <span class="n">xpos_fig</span><span class="p">[</span><span class="n">pp</span><span class="p">]</span>
+        <span class="n">yfig</span> <span class="o">=</span> <span class="n">ypos_fig</span><span class="p">[</span><span class="n">pp</span><span class="p">]</span>
+
+        <span class="c1"># Need to figure out the lower left corner (rather than center)</span>
+        <span class="c1"># of this box. </span>
+        <span class="n">xfig_min</span> <span class="o">=</span> <span class="n">xfig</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">psf_axes_size</span>
+        <span class="n">yfig_min</span> <span class="o">=</span> <span class="n">yfig</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">psf_axes_size</span>
+        
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_axes</span><span class="p">([</span><span class="n">xfig_min</span><span class="p">,</span> <span class="n">yfig_min</span><span class="p">,</span> <span class="n">psf_axes_size</span><span class="p">,</span> <span class="n">psf_axes_size</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">psf_stack</span><span class="o">.</span><span class="n">psfs</span><span class="p">[</span><span class="n">pp</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">norm</span><span class="o">=</span><span class="n">norm</span><span class="p">,</span>
+                       <span class="n">cmap</span><span class="o">=</span><span class="n">plt</span><span class="o">.</span><span class="n">get_cmap</span><span class="p">(</span><span class="n">cmap_name</span><span class="p">),</span> <span class="n">aspect</span><span class="o">=</span><span class="s1">&#39;equal&#39;</span><span class="p">,</span>
+                       <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="n">zoom_px_min</span><span class="p">,</span> <span class="n">zoom_px_max</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="n">zoom_px_min</span><span class="p">,</span> <span class="n">zoom_px_max</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">bottom</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">labelbottom</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">tick_params</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">labelleft</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">metrics</span><span class="p">:</span>
+            <span class="n">fwhm</span> <span class="o">=</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s1">&#39;emp_fwhm&#39;</span><span class="p">][</span><span class="n">pp</span><span class="p">]</span>
+            <span class="n">ellip</span> <span class="o">=</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s1">&#39;ellipticity&#39;</span><span class="p">][</span><span class="n">pp</span><span class="p">]</span>
+            <span class="n">strehl</span> <span class="o">=</span> <span class="n">psf_stack</span><span class="o">.</span><span class="n">metrics</span><span class="p">[</span><span class="s1">&#39;strehl&#39;</span><span class="p">][</span><span class="n">pp</span><span class="p">]</span>
+
+            <span class="nb">str</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;FWHM = </span><span class="si">{</span><span class="n">fwhm</span><span class="o">*</span><span class="mf">1e3</span><span class="si">:</span><span class="s1">.0f</span><span class="si">}</span><span class="s1"> mas</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="nb">str</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;ellip = </span><span class="si">{</span><span class="n">ellip</span><span class="si">:</span><span class="s1">.2f</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="nb">str</span> <span class="o">+=</span> <span class="sa">f</span><span class="s1">&#39;strehl = </span><span class="si">{</span><span class="n">strehl</span><span class="o">*</span><span class="mi">100</span><span class="si">:</span><span class="s1">.0f</span><span class="si">}</span><span class="s1">%</span><span class="se">\n</span><span class="s1">&#39;</span>
+            
+            <span class="n">ax</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.02</span><span class="p">,</span> <span class="mf">0.98</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span>
+                    <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">,</span>
+                    <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span>
+                    <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
+            
+
+    <span class="c1"># Make the axis labels.</span>
+    <span class="n">lab_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">lab_y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="n">lab_x_fig</span> <span class="o">=</span> <span class="p">(</span><span class="n">lab_x</span> <span class="o">-</span> <span class="n">xpos_min</span><span class="p">)</span> <span class="o">*</span> <span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">pos_box_size</span>
+    <span class="n">lab_x_fig</span> <span class="o">+=</span> <span class="n">xlo</span>
+    <span class="n">lab_y_fig</span> <span class="o">=</span> <span class="p">(</span><span class="n">lab_y</span> <span class="o">-</span> <span class="n">ypos_min</span><span class="p">)</span> <span class="o">*</span> <span class="n">plot_box_size</span> <span class="o">/</span> <span class="n">pos_box_size</span>
+    <span class="n">lab_y_fig</span> <span class="o">+=</span> <span class="n">ylo</span>
+
+    <span class="k">for</span> <span class="n">xx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lab_x</span><span class="p">)):</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">lab_x_fig</span><span class="p">[</span><span class="n">xx</span><span class="p">],</span> <span class="n">yhi</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">lab_x</span><span class="p">[</span><span class="n">xx</span><span class="p">]</span><span class="si">:</span><span class="s1">5.1f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                 <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;bottom&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">yy</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lab_y</span><span class="p">)):</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">xlo</span><span class="p">,</span> <span class="n">lab_y_fig</span><span class="p">[</span><span class="n">yy</span><span class="p">],</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">lab_y</span><span class="p">[</span><span class="n">yy</span><span class="p">]</span><span class="si">:</span><span class="s1">5.1f</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span>
+                 <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">)</span>
+
+    <span class="n">fig</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">xlo</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">plot_box_size</span><span class="p">,</span> <span class="mf">0.95</span><span class="p">,</span> <span class="s1">&#39;East - West&#39;</span><span class="p">,</span>
+             <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span>
+             <span class="n">weight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+    <span class="n">fig</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">ylo</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">plot_box_size</span><span class="p">,</span> <span class="s1">&#39;South - North&#39;</span><span class="p">,</span>
+             <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">rotation</span><span class="o">=</span><span class="s1">&#39;vertical&#39;</span><span class="p">,</span>
+             <span class="n">weight</span><span class="o">=</span><span class="s1">&#39;bold&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">24</span><span class="p">)</span>
+
+        
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">(</span><span class="n">block</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">return</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2023, J.R. Lu.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 7.2.6. &nbsp;
+    Last built 18 Nov 2023. <br/>
+  </p>
+</footer>
+  </body>
+</html>

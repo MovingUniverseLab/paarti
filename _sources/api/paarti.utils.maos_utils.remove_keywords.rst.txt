@@ -1,0 +1,6 @@
+remove_keywords
+===============
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: remove_keywords

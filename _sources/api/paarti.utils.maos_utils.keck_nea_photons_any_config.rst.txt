@@ -1,0 +1,6 @@
+keck_nea_photons_any_config
+===========================
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: keck_nea_photons_any_config

@@ -1,0 +1,6 @@
+grid_psf
+========
+
+.. currentmodule:: paarti.psf_plots
+
+.. autofunction:: grid_psf

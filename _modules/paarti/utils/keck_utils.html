@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>paarti.utils.keck_utils &#8212; paarti v0.1</title>
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/bootstrap-astropy.css?v=9d21690f" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/graphviz.css?v=eafc0fe6" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/plot_directive.css" />
+    
+    <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+    <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+    <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+    <script src="../../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../../../_static/copybutton.js"></script>
+    <link rel="icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">paarti</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">paarti v0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" accesskey="U">Module code</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for paarti.utils.keck_utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pylab</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">scipy</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">poppy</span>
+<span class="kn">from</span> <span class="nn">paarti.utils</span> <span class="kn">import</span> <span class="n">maos_utils</span>
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">from</span> <span class="nn">astropy.table</span> <span class="kn">import</span> <span class="n">Table</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">u</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<div class="viewcode-block" id="make_keck_vib_psd">
+<a class="viewcode-back" href="../../../api/paarti.utils.keck_utils.make_keck_vib_psd.html#paarti.utils.keck_utils.make_keck_vib_psd">[docs]</a>
+<span class="k">def</span> <span class="nf">make_keck_vib_psd</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Prepare a Keck wind-shake and vibration PSD modeled after an</span>
+<span class="sd">    exiting TMT one. </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">maos_config_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;MAOS_CONFIG&#39;</span><span class="p">]</span>
+    <span class="n">maos_psd_dir</span> <span class="o">=</span> <span class="n">maos_config_dir</span> <span class="o">+</span> <span class="s1">&#39;/maos/bin/&#39;</span>
+    
+    <span class="n">psd_input_file</span> <span class="o">=</span> <span class="n">maos_psd_dir</span> <span class="o">+</span> <span class="s1">&#39;PSD_TMT_ws20mas_vib15mas_rad2.bin&#39;</span>
+    
+    <span class="n">vib_freq</span> <span class="o">=</span> <span class="mi">29</span> <span class="c1"># Hz</span>
+
+    <span class="c1"># 1D RMS from jitter disturbances per Figure 4.5 of KAON1303</span>
+    <span class="c1">#vib_jitter_amp_tot = (45 + 48)  / 2.0  # mas</span>
+
+    <span class="c1"># Override since this looks like it is getting partially corrected in MAOS. </span>
+    <span class="n">vib_jitter_amp_tot</span> <span class="o">=</span> <span class="p">(</span><span class="mi">20</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">15</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">3</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">**</span><span class="mf">0.5</span> <span class="c1"># mas, originally (20**2 + 15**2 + 7**2)**0.5</span>
+    
+    <span class="c1"># TMT PSD already contains windshake and a broad vibration spectrum. No peaks though. </span>
+    <span class="c1"># Subtract out the jitter already in the TMT PSD to get the</span>
+    <span class="c1"># amount we need to add in the 29 Hz bump. </span>
+    <span class="n">vib_jitter_amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span> <span class="n">vib_jitter_amp_tot</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">20</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="mi">15</span><span class="o">**</span><span class="mi">2</span> <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Adding </span><span class="si">{</span><span class="n">vib_jitter_amp</span><span class="si">:</span><span class="s1">.1f</span><span class="si">}</span><span class="s1"> mas bump at </span><span class="si">{</span><span class="n">vib_freq</span><span class="si">}</span><span class="s1"> Hz&#39;</span><span class="p">)</span>
+
+    <span class="n">vib_jitter_amp</span> <span class="o">/=</span> <span class="mf">1e3</span> <span class="c1"># convert to arcsec</span>
+
+    <span class="c1"># Add new vibrations in:</span>
+    <span class="n">freq</span><span class="p">,</span> <span class="n">psd</span> <span class="o">=</span> <span class="n">maos_utils</span><span class="o">.</span><span class="n">psd_add_vibrations</span><span class="p">(</span><span class="n">psd_input_file</span><span class="p">,</span> <span class="n">vib_freq</span><span class="p">,</span> <span class="n">vib_jitter_amp</span><span class="p">)</span>
+
+    <span class="c1"># Plot PSD</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">loglog</span><span class="p">(</span><span class="n">freq</span><span class="p">,</span> <span class="n">psd</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">mas</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">Hz</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Frequency (Hz)&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Jitter PSD (mas^2/Hz)&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mf">1e-3</span><span class="p">,</span> <span class="mf">1e3</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Total jitter </span><span class="si">{</span><span class="n">maos_utils</span><span class="o">.</span><span class="n">psd_integrate_sqrt</span><span class="p">(</span><span class="n">freq</span><span class="p">,</span><span class="w"> </span><span class="n">psd</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s2">&quot;mas&quot;</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="n">psd_outroot</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">maos_psd_dir</span><span class="si">}</span><span class="s1">PSD_Keck_ws20mas_vib</span><span class="si">{</span><span class="n">vib_jitter_amp_tot</span><span class="si">:</span><span class="s1">.0f</span><span class="si">}</span><span class="s1">mas_rad2&#39;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">psd_outroot</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">psd_outroot</span> <span class="o">+</span> <span class="s1">&#39;.png&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># Create a 2D array with freq and power as expected by MAOS.</span>
+    <span class="n">freq_psd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">freq</span><span class="p">,</span> <span class="n">psd</span><span class="p">])</span>
+    <span class="n">fits</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">psd_outroot</span> <span class="o">+</span> <span class="s1">&#39;.fits&#39;</span><span class="p">,</span> <span class="n">freq_psd</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span></div>
+
+
+<div class="viewcode-block" id="make_keck_ncpa">
+<a class="viewcode-back" href="../../../api/paarti.utils.keck_utils.make_keck_ncpa.html#paarti.utils.keck_utils.make_keck_ncpa">[docs]</a>
+<span class="k">def</span> <span class="nf">make_keck_ncpa</span><span class="p">(</span><span class="n">rms_wfe</span><span class="p">,</span> <span class="n">seg_piston_file</span><span class="o">=</span><span class="s1">&#39;Keck_Segment_Pistons_2023_04_29.csv&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Prepare a Keck NCPA map capturing primary mirror phasing errors that</span>
+<span class="sd">    can&#39;t be calibrated out.</span>
+
+<span class="sd">    Inputs</span>
+<span class="sd">    ------</span>
+<span class="sd">    rms_wfe : float</span>
+<span class="sd">        Desired RMS WFE in nm. The input segment pistons will just be rescaled</span>
+<span class="sd">        to yield the desired RMS WFE.</span>
+
+<span class="sd">    Optional Inputs</span>
+<span class="sd">    ---------------</span>
+<span class="sd">    seg_piston_file : str</span>
+<span class="sd">        Name of the CSV file containing the piston for each primary mirror segment.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">inner_ring</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">outer_ring</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">in_edge_length</span> <span class="o">=</span> <span class="mf">89.88453</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">cm</span>
+    <span class="n">in_gap_size</span> <span class="o">=</span> <span class="mi">7</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">mm</span>
+    <span class="n">sec_rad</span> <span class="o">=</span> <span class="mf">2.48</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span> <span class="o">/</span> <span class="mi">2</span>   <span class="c1"># secondary alone is 1.4 m diam, but support structure adds another 1m</span>
+    <span class="n">spider_num</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="n">spider_width</span> <span class="o">=</span> <span class="mf">0.0254</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span> 
+
+    <span class="c1"># Define primary. Rotations are needed to get into the Keck segment ID convention later.</span>
+    <span class="c1"># Note, we do something slightly different than for the true Keck pupil as we ignore</span>
+    <span class="c1"># spiders, ignore secondary obscuration, etc. </span>
+    <span class="n">prim_as_dm</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">dms</span><span class="o">.</span><span class="n">HexSegmentedDeformableMirror</span><span class="p">(</span><span class="n">rings</span><span class="o">=</span><span class="n">outer_ring</span><span class="p">,</span>
+                                                        <span class="n">side</span><span class="o">=</span><span class="n">in_edge_length</span><span class="p">,</span> <span class="n">gap</span><span class="o">=</span><span class="n">in_gap_size</span><span class="p">,</span>
+                                                        <span class="n">rotation</span><span class="o">=-</span><span class="mi">30</span><span class="p">)</span>
+    <span class="n">prim_as_dm</span><span class="o">.</span><span class="n">pupil_diam</span> <span class="o">*=</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span>  <span class="c1"># just fixing poppy bug.</span>
+
+    <span class="c1"># Read in segment piston map from Zernike WFS measurements (K2).</span>
+    <span class="c1"># File should contain three columns.</span>
+    <span class="c1">#     Segment index, Mean Piston in nm, StdDev Piston in nm</span>
+    <span class="n">pist</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">seg_piston_file</span><span class="p">)</span>
+    
+    <span class="c1"># Rescale RMS WFE to the desired value.</span>
+    <span class="n">rms_wfe_orig</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanstd</span><span class="p">(</span><span class="n">pist</span><span class="p">[</span><span class="s1">&#39;Mean&#39;</span><span class="p">])</span> <span class="c1"># nm</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Original Surface RMS WFE = </span><span class="si">{</span><span class="n">rms_wfe_orig</span><span class="si">:</span><span class="s1">.1f</span><span class="si">}</span><span class="s1"> nm&#39;</span><span class="p">)</span>
+
+    <span class="n">pist</span><span class="p">[</span><span class="s1">&#39;Mean&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">pist</span><span class="p">[</span><span class="s1">&#39;Mean&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">rms_wfe</span> <span class="o">/</span> <span class="n">rms_wfe_orig</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;New Surface RMS WFE (in) = </span><span class="si">{</span><span class="n">rms_wfe</span><span class="si">:</span><span class="s1">.1f</span><span class="si">}</span><span class="s1"> nm&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;New Surface RMS WFE (emp)= </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">nanstd</span><span class="p">(</span><span class="n">pist</span><span class="p">[</span><span class="s2">&quot;Mean&quot;</span><span class="p">])</span><span class="si">:</span><span class="s1">.1f</span><span class="si">}</span><span class="s1"> nm&#39;</span><span class="p">)</span>
+    
+    <span class="c1"># Loop through Keck segment IDs and add WFE (in OPD).</span>
+    <span class="c1"># Note, Poppy&#39;s ID scheme is slightly different.</span>
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">pist</span><span class="p">)):</span>
+        <span class="n">prim_as_dm</span><span class="o">.</span><span class="n">set_actuator</span><span class="p">(</span><span class="n">pist</span><span class="p">[</span><span class="s1">&#39;SegID&#39;</span><span class="p">][</span><span class="n">ii</span><span class="p">],</span> <span class="n">pist</span><span class="p">[</span><span class="s1">&#39;Mean&#39;</span><span class="p">][</span><span class="n">ii</span><span class="p">]</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">nm</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1"># Debugging to figure out actuator numbers</span>
+    <span class="c1"># prim_as_dm.set_actuator(1, pist[&#39;Mean&#39;][ii]*100*u.nm, 0, 0)</span>
+    <span class="c1"># prim_as_dm.set_actuator(2, pist[&#39;Mean&#39;][ii]*50*u.nm, 0, 0)</span>
+    <span class="c1"># prim_as_dm.set_actuator(7, pist[&#39;Mean&#39;][ii]*25*u.nm, 0, 0)</span>
+
+    <span class="c1"># Now add secondary with spiders.</span>
+    <span class="c1"># Rotation is needed to get into Keck segment ID convention.</span>
+    <span class="n">sec</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">SecondaryObscuration</span><span class="p">(</span><span class="n">secondary_radius</span><span class="o">=</span><span class="n">sec_rad</span><span class="p">,</span>
+                                     <span class="n">n_supports</span><span class="o">=</span><span class="n">spider_num</span><span class="p">,</span> <span class="n">support_width</span><span class="o">=</span><span class="n">spider_width</span><span class="p">,</span>
+                                     <span class="n">rotation</span><span class="o">=-</span><span class="mi">30</span><span class="p">)</span>
+
+    <span class="c1"># combine into one optic</span>
+    <span class="n">atlast</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">CompoundAnalyticOptic</span><span class="p">(</span><span class="n">opticslist</span><span class="o">=</span><span class="p">[</span><span class="n">prim_as_dm</span><span class="p">,</span> <span class="n">sec</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Keck&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Use 11 m sized rectangular array of the pupil.</span>
+    <span class="n">diam</span> <span class="o">=</span> <span class="mi">11</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span>
+    <span class="n">temp_wavefront</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">Wavefront</span><span class="p">(</span><span class="n">wavelength</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">micron</span><span class="p">,</span> <span class="n">npix</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">diam</span><span class="o">=</span><span class="n">diam</span><span class="p">)</span>
+    
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Pupil image size is </span><span class="si">{</span><span class="n">diam</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Final OPD map.</span>
+    <span class="n">opd</span> <span class="o">=</span> <span class="n">atlast</span><span class="o">.</span><span class="n">get_opd</span><span class="p">(</span><span class="n">temp_wavefront</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># Plot the OPD map of NCPA.</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span><span class="mi">8</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">subplots_adjust</span><span class="p">(</span><span class="n">left</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">bottom</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span> <span class="n">top</span><span class="o">=</span><span class="mf">0.95</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+    <span class="n">minmax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">opd</span><span class="p">))</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">opd</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="mf">1e9</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;seismic&#39;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="n">minmax</span><span class="o">*</span><span class="mf">1e9</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">minmax</span><span class="o">*</span><span class="mf">1e9</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="s1">&#39;equal&#39;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;OPD (nm)&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">seg_id</span> <span class="ow">in</span> <span class="n">prim_as_dm</span><span class="o">.</span><span class="n">_seg_indices</span><span class="p">:</span>
+        <span class="c1"># Invert coordinates since we transposed the array.</span>
+        <span class="n">seg</span> <span class="o">=</span> <span class="n">prim_as_dm</span><span class="o">.</span><span class="n">_seg_indices</span><span class="p">[</span><span class="n">seg_id</span><span class="p">]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">seg</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">seg</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">seg_id</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">ha</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">va</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+    <span class="c1"># Output directory for images and NCPA map.</span>
+    <span class="n">maos_config_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;MAOS_CONFIG&#39;</span><span class="p">]</span>
+    <span class="n">maos_ncpa_dir</span> <span class="o">=</span> <span class="n">maos_config_dir</span> <span class="o">+</span> <span class="s1">&#39;/maos/bin/&#39;</span>
+    
+    <span class="n">outroot</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">maos_ncpa_dir</span><span class="si">}</span><span class="s1">/Keck_ncpa_rmswfe</span><span class="si">{</span><span class="n">rms_wfe</span><span class="si">:</span><span class="s1">.0f</span><span class="si">}</span><span class="s1">nm&#39;</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">outroot</span> <span class="o">+</span> <span class="s1">&#39;.png&#39;</span><span class="p">)</span>
+
+    <span class="n">hdr</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">()</span>
+    <span class="n">diam_m</span> <span class="o">=</span> <span class="n">diam</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;m&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;dx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">diam_m</span> <span class="o">/</span> <span class="n">opd</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;dy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">diam_m</span> <span class="o">/</span> <span class="n">opd</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;ox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">diam_m</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;oy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">diam_m</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;h&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">fits</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">outroot</span> <span class="o">+</span> <span class="s1">&#39;.fits&#39;</span><span class="p">,</span> <span class="n">opd</span><span class="p">,</span> <span class="n">hdr</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span></div>
+
+
+<div class="viewcode-block" id="make_keck_pupil">
+<a class="viewcode-back" href="../../../api/paarti.utils.keck_utils.make_keck_pupil.html#paarti.utils.keck_utils.make_keck_pupil">[docs]</a>
+<span class="k">def</span> <span class="nf">make_keck_pupil</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generates a fits file corresponding to the Keck pupil. </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1">#Grab the poppy keck pupil</span>
+    <span class="n">atlast</span> <span class="o">=</span> <span class="n">make_keck_poppy_pupil</span><span class="p">()</span>
+
+    <span class="c1"># Use 11 m sized rectangular array of the pupil.</span>
+    <span class="n">diam</span> <span class="o">=</span> <span class="mi">11</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span>
+    <span class="n">temp_wavefront</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">Wavefront</span><span class="p">(</span><span class="n">wavelength</span><span class="o">=</span><span class="mi">2</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">micron</span><span class="p">,</span> <span class="n">npix</span><span class="o">=</span><span class="mi">1024</span><span class="p">,</span> <span class="n">diam</span><span class="o">=</span><span class="n">diam</span><span class="p">)</span>
+    
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Pupil image size is </span><span class="si">{</span><span class="n">diam</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">ampl</span> <span class="o">=</span> <span class="n">atlast</span><span class="o">.</span><span class="n">get_transmission</span><span class="p">(</span><span class="n">temp_wavefront</span><span class="p">)</span>
+    <span class="n">transmittance</span> <span class="o">=</span> <span class="n">ampl</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="c1"># Transpose the array to get it into the angle=0 convention</span>
+    <span class="c1"># of Keck. (see the NCPA maps that must match).</span>
+    <span class="n">transmittance</span> <span class="o">=</span> <span class="n">transmittance</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">transmittance</span><span class="p">)</span>
+
+    <span class="n">hdr</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">()</span>
+    <span class="n">diam_m</span> <span class="o">=</span> <span class="n">diam</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="s1">&#39;m&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;dx&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">diam_m</span> <span class="o">/</span> <span class="n">transmittance</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;dy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">diam_m</span> <span class="o">/</span> <span class="n">transmittance</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;ox&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">diam_m</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;oy&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">diam_m</span> <span class="o">/</span> <span class="mf">2.0</span>
+    <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;h&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">fits</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="s1">&#39;KECK_gaps_spiders.fits&#39;</span><span class="p">,</span> <span class="n">transmittance</span><span class="p">,</span> <span class="n">hdr</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">return</span></div>
+
+
+<div class="viewcode-block" id="make_keck_poppy_pupil">
+<a class="viewcode-back" href="../../../api/paarti.utils.keck_utils.make_keck_poppy_pupil.html#paarti.utils.keck_utils.make_keck_poppy_pupil">[docs]</a>
+<span class="k">def</span> <span class="nf">make_keck_poppy_pupil</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Makes a poppy pupil object matching the Keck Pupil. </span>
+
+<span class="sd">    From Arroyo (Matthew Britton):</span>
+<span class="sd">    Construct an aperture like at Keck,</span>
+<span class="sd">    with rings of hexagonal apertures.</span>
+<span class="sd">    The central hexagon is labelled as ring</span>
+<span class="sd">    zero.  So for the Keck primary,</span>
+<span class="sd">    inner_ring = 1 and outer_ring = 3</span>
+
+<span class="sd">    According to Mitch, the actual glass </span>
+<span class="sd">    hexagon has a 90 cm edge.  But the outer</span>
+<span class="sd">    1 mm is beveled, so is optically opaque.</span>
+<span class="sd">    Then there&#39;s a 5 mm gap between hexes.</span>
+<span class="sd">    So its like having a 7 mm gap, with a hexagon</span>
+<span class="sd">    that has an edge length of </span>
+<span class="sd">    90 cm - 2*(.1 cm) /sqrt(3) = 89.88453 cm</span>
+
+<span class="sd">    Note - edge length and gap size must be </span>
+<span class="sd">    positive.  Both are in meters.</span>
+
+<span class="sd">    See https://arxiv.org/pdf/2109.00612.pdf for more</span>
+<span class="sd">    recent details and measurements of the pupil.</span>
+<span class="sd">    </span>
+<span class="sd">    Returns a poppy CompoundAnalyticOptic</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># inner_ring = 1 #Not used</span>
+    <span class="n">outer_ring</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">in_edge_length</span> <span class="o">=</span> <span class="mf">89.88453</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">cm</span>
+    <span class="n">in_gap_size</span> <span class="o">=</span> <span class="mi">7</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">mm</span>
+    <span class="n">sec_rad</span> <span class="o">=</span> <span class="mf">2.48</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span> <span class="o">/</span> <span class="mi">2</span>   <span class="c1"># secondary alone is 1.4 m diam, but support structure adds another 1m</span>
+    <span class="n">spider_num</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="n">spider_width</span> <span class="o">=</span> <span class="mf">0.0254</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span> 
+
+    <span class="c1"># 3 rings of segments yields</span>
+    <span class="n">ap</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">MultiHexagonAperture</span><span class="p">(</span><span class="n">rings</span><span class="o">=</span><span class="n">outer_ring</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">in_edge_length</span><span class="p">,</span> <span class="n">gap</span><span class="o">=</span><span class="n">in_gap_size</span><span class="p">)</span>
+    <span class="c1"># secondary with spiders</span>
+    <span class="n">sec</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">SecondaryObscuration</span><span class="p">(</span><span class="n">secondary_radius</span><span class="o">=</span><span class="n">sec_rad</span><span class="p">,</span>
+                                     <span class="n">n_supports</span><span class="o">=</span><span class="n">spider_num</span><span class="p">,</span> <span class="n">support_width</span><span class="o">=</span><span class="n">spider_width</span><span class="p">)</span>
+
+    <span class="n">ap</span><span class="o">.</span><span class="n">pupil_diam</span> <span class="o">*=</span> <span class="n">u</span><span class="o">.</span><span class="n">m</span>
+    
+    <span class="c1"># combine into one optic</span>
+    <span class="n">atlast</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">CompoundAnalyticOptic</span><span class="p">(</span><span class="n">opticslist</span><span class="o">=</span><span class="p">[</span><span class="n">ap</span><span class="p">,</span> <span class="n">sec</span><span class="p">],</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Keck&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">atlast</span></div>
+
+    
+<div class="viewcode-block" id="generate_keck_psf">
+<a class="viewcode-back" href="../../../api/paarti.utils.keck_utils.generate_keck_psf.html#paarti.utils.keck_utils.generate_keck_psf">[docs]</a>
+<span class="k">def</span> <span class="nf">generate_keck_psf</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span><span class="n">pixelscale</span><span class="p">,</span><span class="n">fov</span><span class="o">=</span><span class="mf">2.0</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Generate a perfect monochromatic Keck PSF using the poppy </span>
+
+<span class="sd">    Inputs: </span>
+<span class="sd">    wavelength - in meters</span>
+<span class="sd">    pixelscale - in arcsecond</span>
+<span class="sd">    fov - field of view in arcseconds</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1">#TODO Check for astropy units. Consider forcing the inputs to have units</span>
+
+    <span class="n">osys</span> <span class="o">=</span> <span class="n">poppy</span><span class="o">.</span><span class="n">OpticalSystem</span><span class="p">()</span>
+    <span class="n">osys</span><span class="o">.</span><span class="n">add_pupil</span><span class="p">(</span><span class="n">make_keck_poppy_pupil</span><span class="p">())</span>  
+
+    <span class="n">osys</span><span class="o">.</span><span class="n">add_detector</span><span class="p">(</span><span class="n">pixelscale</span><span class="o">=</span><span class="n">pixelscale</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">pixel</span><span class="p">,</span> <span class="n">fov_arcsec</span><span class="o">=</span><span class="n">fov</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">arcsec</span><span class="p">)</span>
+
+    <span class="n">psf</span> <span class="o">=</span> <span class="n">osys</span><span class="o">.</span><span class="n">calc_psf</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>   
+
+    <span class="k">return</span> <span class="n">psf</span></div>
+
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2023, J.R. Lu.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 7.2.6. &nbsp;
+    Last built 18 Nov 2023. <br/>
+  </p>
+</footer>
+  </body>
+</html>

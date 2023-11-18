@@ -1,0 +1,6 @@
+estimate_on_sky_conditions
+==========================
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: estimate_on_sky_conditions

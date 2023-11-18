@@ -1,0 +1,6 @@
+arcsec_to_rad
+=============
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: arcsec_to_rad

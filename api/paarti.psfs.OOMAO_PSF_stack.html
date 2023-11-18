@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+    <title>OOMAO_PSF_stack &#8212; paarti v0.1</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-astropy.css?v=9d21690f" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=eafc0fe6" />
+    <link rel="stylesheet" type="text/css" href="../_static/plot_directive.css" />
+    
+    <script src="../_static/jquery.js?v=5d32c60e"></script>
+    <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+    <script src="../_static/documentation_options.js?v=2709fde1"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <script type="text/javascript" src="../_static/copybutton.js"></script>
+    <link rel="icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="PSF_stack" href="paarti.psfs.PSF_stack.html" />
+    <link rel="prev" title="MAOS_PSF_stack" href="paarti.psfs.MAOS_PSF_stack.html" />
+    <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">paarti</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="paarti.psfs.PSF_stack.html" title="PSF_stack">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="paarti.psfs.MAOS_PSF_stack.html" title="MAOS_PSF_stack">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">paarti v0.1</a>
+	 &#187;
+      </li>
+      <li><a href="../paarti/index.html" accesskey="U">paarti Documentation</a> &#187;</li>
+      
+      <li>OOMAO_PSF_stack</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="oomao-psf-stack">
+<h1>OOMAO_PSF_stack<a class="headerlink" href="#oomao-psf-stack" title="Link to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="paarti.psfs.OOMAO_PSF_stack">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">paarti.psfs.</span></span><span class="sig-name descname"><span class="pre">OOMAO_PSF_stack</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">psf_strip_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'./'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pixel_scale</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.02081</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wavelength</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bandpass</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">telescope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'Keck1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">isgrid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">psf_spacing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">LGSpos</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">array([[-7.6,</span> <span class="pre">0.],</span> <span class="pre">[0.,</span> <span class="pre">7.6],</span> <span class="pre">[0.,</span> <span class="pre">-7.6],</span> <span class="pre">[7.6,</span> <span class="pre">0.]])</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">NGSpos</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">array([[0.,</span> <span class="pre">5.6]])</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/paarti/psfs.html#OOMAO_PSF_stack"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#paarti.psfs.OOMAO_PSF_stack" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="paarti.psfs.PSF_stack.html#paarti.psfs.PSF_stack" title="paarti.psfs.PSF_stack"><code class="xref py py-class docutils literal notranslate"><span class="pre">PSF_stack</span></code></a></p>
+<p>Load a grid of OOMAO simulated PSFS</p>
+</dd></dl>
+
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">OOMAO_PSF_stack</a><ul>
+<li><a class="reference internal" href="#paarti.psfs.OOMAO_PSF_stack"><code class="docutils literal notranslate"><span class="pre">OOMAO_PSF_stack</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="../_sources/api/paarti.psfs.OOMAO_PSF_stack.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2023, J.R. Lu.<br/>
+    Created using <a href="http://www.sphinx-doc.org/en/stable/">Sphinx</a> 7.2.6. &nbsp;
+    Last built 18 Nov 2023. <br/>
+  </p>
+</footer>
+  </body>
+</html>

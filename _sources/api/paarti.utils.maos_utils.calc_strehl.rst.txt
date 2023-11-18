@@ -1,0 +1,6 @@
+calc_strehl
+===========
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: calc_strehl

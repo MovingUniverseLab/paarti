@@ -1,0 +1,6 @@
+make_keck_ncpa
+==============
+
+.. currentmodule:: paarti.utils.keck_utils
+
+.. autofunction:: make_keck_ncpa

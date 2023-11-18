@@ -1,0 +1,6 @@
+maos_phase_screen_grid
+======================
+
+.. currentmodule:: paarti.utils.maos_utils
+
+.. autofunction:: maos_phase_screen_grid

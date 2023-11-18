@@ -1,0 +1,17 @@
+PSF_stack
+=========
+
+.. currentmodule:: paarti.psfs
+
+.. autoclass:: PSF_stack
+   :show-inheritance:
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~PSF_stack.save
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: save

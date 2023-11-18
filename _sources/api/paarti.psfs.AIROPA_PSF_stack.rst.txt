@@ -1,0 +1,7 @@
+AIROPA_PSF_stack
+================
+
+.. currentmodule:: paarti.psfs
+
+.. autoclass:: AIROPA_PSF_stack
+   :show-inheritance:
