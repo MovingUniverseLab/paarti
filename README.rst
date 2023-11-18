@@ -1,3 +1,4 @@
+--------------------------------------------------------------------
 PSFs with AO for Astronomical Research, Testing, and Instrumentation
 --------------------------------------------------------------------
 
@@ -5,34 +6,36 @@ PSFs with AO for Astronomical Research, Testing, and Instrumentation
     :target: http://www.astropy.org
     :alt: Powered by Astropy Badge
 
-**PAARTI** is a Python package used to process, analyze, and visualize Point Spread Functions in Adaptive Optics.
+**PAARTI** is a Python package used to process, analyze, and visualize Point Spread Functions for adaptive optics images.
 
-If you have questions or issues with the package, please contact Jessica Lu at [jlu.astro@berkeley.edu](mailto:jlu.astro@berkeley.edu)
+If you have questions or issues with the package, please contact Jessica Lu at `jlu.astro@berkeley.edu <mailto:jlu.astro@berkeley.edu>`__.
 
-Usage:
------
+All documentation to use PAARTI can be found under the `docs <docs/index.rst>`__ directory.
+
+Installation
+============
 To use this package, open a terminal and navigate to the desired path. Clone the repository:
 
 .. code-block:: Python
     git clone https://github.com/jluastro/paarti.git
     
-and add the folder to your Python path by adding this line to your ~/.bashrc or ~/.bash_profile:
+and add the folder to your Python path by adding this line to your ~/.bash_profile or ~/.zshenv:
 
 .. code-block:: Python
     export PYTHONPATH="${PYTHONPATH}:/path_to_folder/paarti"
 
-Developers:
------------
+Developers
+==========
+- Jessica R. Lu
 - Matthew Freeman
 - Abhimat Gautam
-- Jessica R. Lu
 - Emily Ramey
 - Sanchit Sabhlok
 - Sean Terry
 - Paolo Turri
 
 License
--------
+=======
 
 This project is Copyright (c) J.R. Lu and licensed under
 the terms of the GNU GPL v3+ license. This package is based upon
@@ -42,33 +45,8 @@ more information.
 
 
 Contributing
-------------
+============
 
 We love contributions! paarti is open source,
 built on open source, and we'd love to have you hang out in our community.
 
-**Imposter syndrome disclaimer**: We want your help. No, really.
-
-There may be a little voice inside your head that is telling you that you're not
-ready to be an open source contributor; that your skills aren't nearly good
-enough to contribute. What could you possibly offer a project like this one?
-
-We assure you - the little voice in your head is wrong. If you can write code at
-all, you can contribute code to open source. Contributing to open source
-projects is a fantastic way to advance one's coding skills. Writing perfect code
-isn't the measure of a good developer (that would disqualify all of us!); it's
-trying to create something, making mistakes, and learning from those
-mistakes. That's how we all improve, and we are happy to help others learn.
-
-Being an open source contributor doesn't just mean writing code, either. You can
-help out by writing documentation, tests, or even giving feedback about the
-project (and yes - that includes giving feedback about the contribution
-process). Some of these contributions may be the most valuable to the project as
-a whole, because you're coming to the project with fresh eyes, so you can see
-the errors and assumptions that seasoned contributors have glossed over.
-
-Note: This disclaimer was originally written by
-`Adrienne Lowe <https://github.com/adriennefriend>`_ for a
-`PyCon talk <https://www.youtube.com/watch?v=6Uj746j9Heo>`_, and was adapted by
-paarti based on its use in the README file for the
-`MetPy project <https://github.com/Unidata/MetPy>`_.
