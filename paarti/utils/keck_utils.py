@@ -12,53 +12,75 @@ import os
 # import readbin from MAOS
 import readbin
 
-def make_keck_vib_psd():
+def make_keck_vib_psd(jitter_tot=1.0):
     """
     Prepare a Keck wind-shake and vibration PSD modeled after an
-    exiting TMT one. 
+    exiting TMT one. The user can scale this PSD with the 
+    optional jitter input [mas], which will go into the PSD
+    filename.
+
+    Inputs:
+    ----------
+    jitter_tot            : float, default = 1.0
+        New total jitter [mas] for PSD to be generated
+        
+    Outputs:
+    ----------
+    psd_outfoot + '.fits' : string
+	Filename of generated PSD
+
+    Modified by Brooke DiGia
     """
     maos_config_dir = os.environ['MAOS_CONFIG']
-    maos_psd_dir = maos_config_dir + '/maos/bin/'
-    
+    maos_psd_dir = maos_config_dir + '/maos/bin/'    
     psd_input_file = maos_psd_dir + 'PSD_TMT_ws20mas_vib15mas_rad2.bin'
     
-    vib_freq = 29 # Hz
+    # Location of vibration bump (29 Hz)
+    vib_freq = 29
 
     # 1D RMS from jitter disturbances per Figure 4.5 of KAON1303
-    #vib_jitter_amp_tot = (45 + 48)  / 2.0  # mas
+    # vib_jitter_amp_tot = (45 + 48)  / 2.0  # mas
 
-    # Override since this looks like it is getting partially corrected in MAOS. 
-    vib_jitter_amp_tot = (20**2 + 15**2 + 3**2)**0.5 # mas, originally (20**2 + 15**2 + 7**2)**0.5
+    # Override since this looks like it is getting partially corrected in MAOS 
+    vib_jitter_amp_tot = ( 20.0**2.0 + 15.0**2.0 + 7.0**2.0 )**0.5 # mas
     
-    # TMT PSD already contains windshake and a broad vibration spectrum. No peaks though. 
-    # Subtract out the jitter already in the TMT PSD to get the
-    # amount we need to add in the 29 Hz bump. 
-    vib_jitter_amp = np.sqrt( vib_jitter_amp_tot**2 - 20**2 - 15**2 )
-    print(f'Adding {vib_jitter_amp:.1f} mas bump at {vib_freq} Hz')
+    # TMT PSD already contains windshake and a broad vibration spectrum. 
+    # No peaks though. Subtract out the jitter already in the TMT PSD to get 
+    # the amount we need to add in the 29 Hz bump. 
+    vib_jitter_amp = np.sqrt( vib_jitter_amp_tot**2.0 - 20.0**2.0 - 15.0**2.0 )
+    print(f'Adding {vib_jitter_amp:.1f} mas bump at {vib_freq} Hz...')
 
-    vib_jitter_amp /= 1e3 # convert to arcsec
+    # Convert to arcseconds
+    vib_jitter_amp /= 1e3
 
-    # Add new vibrations in:
+    # Add new vibrations
     freq, psd = maos_utils.psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp)
+
+    # Calculate area of this PSD
+    A = np.square(maos_utils.psd_integrate_sqrt(freq, psd).to("mas"))
+
+    # Scale PSD (if user did not specify this argument, the default value is 1.0,
+    # which is equivalent to no scaling of the original PSD)
+    psd *= ( (jitter_tot*u.mas)**2.0 ) / A
 
     # Plot PSD
     plt.close(1)
     plt.figure(1)
-    plt.loglog(freq, psd.to(u.mas**2/u.Hz))
+    plt.loglog(freq, psd.to( u.mas**2 / u.Hz ))
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Jitter PSD (mas^2/Hz)')
     plt.ylim(1e-3, 1e3)
-    print(f'Total jitter {maos_utils.psd_integrate_sqrt(freq, psd).to("mas")}')
+    print(f'Total jitter = {jitter_tot} mas')
 
-    psd_outroot = f'{maos_psd_dir}PSD_Keck_ws20mas_vib{vib_jitter_amp_tot:.0f}mas_rad2'
-    print(psd_outroot)
+    psd_outroot = f'{maos_psd_dir}PSD_Keck_ws{jitter_tot}mas_vib{vib_jitter_amp_tot:.0f}mas_rad2'
     plt.savefig(psd_outroot + '.png')
     
     # Create a 2D array with freq and power as expected by MAOS.
     freq_psd = np.array([freq, psd])
     fits.writeto(psd_outroot + '.fits', freq_psd, overwrite=True)
 
-    return
+    # Return filename of generated PSD for grid search purposes
+    return psd_outroot + '.fits'
 
 def make_keck_ncpa(rms_wfe, seg_piston_file='Keck_Segment_Pistons_2023_04_29.csv'):
     """

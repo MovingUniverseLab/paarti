@@ -7,6 +7,7 @@ from astropy.modeling import models, fitting
 import astropy.units as u
 import astropy
 from paarti.psf_metrics import metrics
+from paarti.utils import keck_utils
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 import glob
 import readbin
@@ -16,9 +17,9 @@ import matplotlib.pyplot as plt
 import os
 import pdb
 import urllib
-import requests
 from pandas import read_csv
 from kai import instruments
+from bs4 import BeautifulSoup
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
 MinMag  MaxMag  Integ   Gain	SFW 	Sky
@@ -732,7 +733,10 @@ def psd_integrate_sqrt(freq, psd):
     """
     dfreq = np.diff(freq)
     total_variance = scipy.integrate.trapezoid(psd, freq)
-    total_rms = math.sqrt(total_variance)
+
+    # math.sqrt changed to np.sqrt since that seems to have better
+    # support for Astropy Quantities (units attached) -- Brooke D.
+    total_rms = np.sqrt(total_variance)
     return total_rms
 
 def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
@@ -788,6 +792,7 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
                               fwhm='(mas)'))
 
     # Get the PSF .fits files from the input simulation directory
+    print(sim_dir, f'evlpsfcl_{sim_seed}_x0_y0.fits')
     fits_files = glob.glob(sim_dir + f'evlpsfcl_{sim_seed}_x0_y0.fits')
     print(fits_files)
     psf_all_wvls = fits.open(fits_files[0])
@@ -1225,10 +1230,12 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
     dimm      : float
         Total seeing (arcsec) from DIMM data file
 
-    mass_wts  : 6-entry 1D array, floats
+    mass_wts  : 7-entry 1D array, floats
         c_l weights from MASS data file. Response from 
         Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
-        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l.
+        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
+        last element of this array is the MASS seeing (not a weight),
+        so it is not used in the calculation
 
     date      : string
         Date of MASS/DIMM data; used only for plot filename and labels
@@ -1257,6 +1264,8 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
     r0 = fried(dimm, wvl)
     mu0 = 0.06 * ( wvl*1e-9 )**2.0 * r0**(-5.0/3.0)
 
+    # Strip off MASS seeing
+    mass_wts = mass_wts[:-1]
     c0 = mu0 - np.sum(mass_wts)
     cls = np.zeros(len(mass_wts) + 1)
     if normalize:
@@ -1429,7 +1438,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         masspro = date_for_massdimm + ".masspro.dat"
         url_root = "http://mkwc.ifa.hawaii.edu/current/seeing/"
         url = url_root + "dimm/" + dimmdat
-        if not os.path.exists(dimmdat):
+        if not os.path.exists(saveto + dimmdat):
             try:
                 # Pull and save DIMM file
                 urllib.request.urlretrieve(url, saveto + dimmdat)
@@ -1443,7 +1452,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
 
         # Reset url
         url = url_root + "masspro/" + masspro
-        if not os.path.exists(masspro):
+        if not os.path.exists(saveto + masspro):
             try:
                 # Pull and save MASS file
                 urllib.request.urlretrieve(url, saveto + masspro)
@@ -1458,7 +1467,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         # Pull CFHT data based on year of observation date
         cfht_url = "http://mkwc.ifa.hawaii.edu/archive/wx/cfht/cfht-wx.%s.dat" % year
         cfht = "cfht-wx.%s.dat" % year
-        if not os.path.exists(cfht):
+        if not os.path.exists(saveto + cfht):
             try:
                 urllib.request.urlretrieve(cfht_url, saveto + cfht)
                 print(f"{cfht} saved to {saveto}")
@@ -1473,16 +1482,22 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         phto_url = "http://weather.uwyo.edu/cgi-bin/sounding?region=naconf&TYPE=TEXT%3ALIST&YEAR=" + year + "&MONTH=" + month + "&FROM=" + day + "00&TO=" + day + "00&STNM=91285"
 
         phto = "phto.%s.dat" % date_for_massdimm
-        if not os.path.exists(phto):
+        phto_clean = "phto.%s_cleaned.dat" % date_for_massdimm
+        if not os.path.exists(saveto + phto):
             try:
                 urllib.request.urlretrieve(phto_url, saveto + phto)
-                # page = requests.get(phto_url)
-                # contents = page.text
+                with open(saveto + phto) as html:
+                    soup = BeautifulSoup(html, 'html.parser')
+                    to_save = soup.find_all('pre')[0]
+                    for lines in to_save:
+                        line = str(lines.text)
+                        with open(saveto + phto_clean, 'w') as f:
+                            f.write(line)
                 print(f"{phto} saved to {saveto}")
             except Exception as error:
                 print(f"Error while downloading {phto} from {phto_url}:",
                       type(error).__name__, error)
-                #return
+                return
         else:
             print(f"{phto} exists in directory {saveto}, not downloading.")
 
@@ -1588,11 +1603,10 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         cfht_time_in_hrs = np.add(cfht_hr, np.divide(cfht_min, 60.0))
 
         # Load in PHTO data and parse into individual arrays
-        rows_to_skip = np.concatenate( (np.arange(0, 10), 
-                                        np.arange(145, 207)) )
-        phto_table = read_csv(saveto + phto, delim_whitespace=True, usecols=\
-                             [1, 6, 7], skiprows=rows_to_skip, 
-                             names=['hght', 'drct', 'sknt'])
+        phto_table = read_csv(saveto + phto_clean, delim_whitespace=True, 
+                              usecols=[1,6,7], skiprows=[0,1,2,3,4], 
+                              names=['hght', 'drct', 'sknt'], 
+                              skipfooter=1, engine='python')
         phto_hghts = np.asarray(phto_table['hght'], dtype=float)
         phto_wddir = np.array(phto_table['drct'])
         phto_wdspd = np.array(phto_table['sknt']) * ( 1852.0 / (60.0 * 60.0) )
@@ -1649,10 +1663,12 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
 
         mass_profile_start = [mass_cn2dh05[i_mass_start], mass_cn2dh1[i_mass_start],
                               mass_cn2dh2[i_mass_start], mass_cn2dh4[i_mass_start],
-                              mass_cn2dh8[i_mass_start], mass_cn2dh16[i_mass_start]]
+                              mass_cn2dh8[i_mass_start], mass_cn2dh16[i_mass_start],
+                              mass_seeing[i_mass_start]]
         mass_profile_stop = [mass_cn2dh05[i_mass_stop], mass_cn2dh1[i_mass_stop],
                              mass_cn2dh2[i_mass_stop], mass_cn2dh4[i_mass_stop],
-                             mass_cn2dh8[i_mass_stop], mass_cn2dh16[i_mass_stop]]
+                             mass_cn2dh8[i_mass_stop], mass_cn2dh16[i_mass_stop],
+                             mass_seeing[i_mass_stop]]
         mass_date_start = str(mass_yr[i_mass_start]) \
                           + ":" + str(mass_mon[i_mass_start]) \
                           + ":" + str(mass_day[i_mass_start]) \
@@ -1694,7 +1710,9 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         # noise involved in the MASS/DIMM measurements)
         avg_turb = np.average((np.array(start_turb), np.array(end_turb)), axis=0)
         avg_r0 = (r0_start + r0_end) / 2.0
-        print("\n*** Full turbulence profile:\t\t    ", avg_turb)
+        avg_mass_seeing = (mass_profile_start[-1] + mass_profile_stop[-1]) / 2.0
+        print("\nMASS seeing (arcsec): ", avg_mass_seeing)
+        print("*** Full turbulence profile:\t\t    ", avg_turb)
         print("*** Fried parameter (m):\t\t\t%0.6f\n" % avg_r0)
 
         # Average CFHT data across exposure to calculate ground layer wind speed
@@ -1723,105 +1741,91 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         
     return avg_r0, avg_turb, wind_spd_profile, wind_dir_profile
 
-def run_maos_sims(sim_dirs, top_configs, metrics_files, 
-                  maos_plot=True, aper=0.3):
+def maos_windshake_grid(amps, on_sky, thres=0.05):
     """
-    Function to run multiple MAOS simulations in terminal with
-    various options.
+    Function to run multiple MAOS simulations for a grid search of various
+    windshake amplitudes (mas).
 
     Inputs:
     ------------
-    sim_dirs      : array, dtype=string
-        Directory(ies) containing configuration files for each
-        simulation to be run.
+    amp    : array, variable length, dtype=float
+        Total vibration-jitter amplitudes to be input into make_keck_vib_psd()
 
-        For example, the output folder for running the base Keck
-        single-conjugate laser-guide-star AO case is 
-        <path to base>/base/top_configs[i]
+    on_sky : 2D-array, variable length, dtype=mixed (str + float)
+        Array containing the frame names, their locations, and metrics for on-sky
+        data. The frame name is the name ONLY (no path or file suffix), while the
+        location must be a FULL path (not relative). An example row of this array:
 
-    top_configs   : array, dtype=string
-        The name(s) of the top-level configuration file(s) 
-        for simulation(s). These will provide the names for the 
-        simulation output directory folder(s). NOTE: These are the
-        names of the files ONLY, not the paths. By convention,
-        these files are located in the simulation directories, so
-        the user should not specify their full path.
+        ['c0103', '/u/bdigia/work/ao/single_psfs/good_run_psfs/', 0.303,
+         53.49, 369.5]
 
-    metrics_files : array, dtype=string
-        Path/name of text file to write calc_strehl results to. Note: MAOS
-        will write and store the simulation outputs in out_dirs. calc_strehl
-        will find and read in the simulation outputs to compute various
-        metrics (Strehl, FWHM, RMS WFE, etc.), and will then write these 
-        metrics to the metrics_file
-
-    maos_plot     : boolean, default=True
-        MAOS output plot option, turned on or off
-
-    aper          : float, default=0.3
-        Aperture size for calc_strehl function used in calculating
-        simulation results.
+    thres  : float, default = 0.05
+	Optional threshold argument for 'passing' criteria in grid search
         
     Outputs:
     ------------
-    None, simulation runs in terminal and results are written to output
-    directory
+    best   : array, variable length, 8-element tuples of floats
+        Array of best combinations of r0 and l0 and their corresponding
+        strehls, fwhms, and rmswfes
+
+    Also displays simulation results in terminal and writes output metrics to
+    text file defined below as "metrics_file" via the calc_strehl function
 
     By Brooke DiGia
     """
-    # Change plotting options if user has turned them off
-    plotall = 1
-    plotsetup = 1
-    if maos_plot == False:
-        plotall = 0
-        plotsetup = 0
+    base_root = "/u/bdigia/work/ao/keck/maos/keck/my_base/"
+    best = []
 
-    if len(np.array(sim_dirs)) != len(np.array(top_configs)):
-        print("Missing configuration files. Aborting...")
-        return
-    else:
-        out_dirs = []
-        # Loop to set output directories before running simulations
-        for i in range(len(sim_dirs)):
-            folder_name = top_configs[i].replace(".conf", "")
-            if sim_dirs[i][-1] != "/":
-                out_dirs.append(sim_dirs[i] + "/" + folder_name + "/")
-            else:
-                out_dirs.append(sim_dirs[i] + folder_name + "/")
+    # Convert on_sky array to numpy array in case user
+    # did not input it as such
+    on_sky = np.array(on_sky)
 
-        # Simulation loop
-        for i in range(len(sim_dirs)):
-            # MAOS requires working directory to be the same as simulation
-            # directory for a successful run, so if user is located elsewhere,
-            # move current working directory to simulation directory and 
-            # notify user
+    for i in range(len(amps)):
+    	for i in range(on_sky.shape[0]):
+            # Get atmospheric conditions for current on_sky frame
+            fried, turbpro, windspd, winddrct = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", on_sky[i][1])
+            
+            # Make new PSD based on input total jitter amplitude
+            psd_file = keck_utils.make_keck_vib_psd(amps[i])
+        
+            # Set MAOS command
+            folder = f"A_keck_scao_lgs_gc_ws={amps[i]}mas_{on_sky[i][0]}"
+            maos_cmd = f"""maos -o {folder} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 sim.wspsd={psd_file} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspd} atm.wddeg={winddrct} -O"""
+
             cwd = os.getcwd()
-            if cwd != sim_dirs[i]:
+            # Must be in MAOS simulation directory to run successfully
+            if cwd != base_root:
                 print("Current working directory (CWD) is %s" % cwd)
-                print("Moving CWD to MAOS simulation directory...")
-                os.chdir(sim_dirs[i])
+                print("Moving CWD to MAOS simulation directory...\n")
+                os.chdir(base_root)
 
-            on_sky_filename = sim_dirs[i][-6:-1] + "_psf.fits"
-            print(on_sky_filename)
-            on_sky_path = "/u/bdigia/work/ao/single_psfs/good_run_psfs/"
-            on_sky_file = on_sky_path + on_sky_filename
+            os.system(maos_cmd)
 
-            r0z, turbulence, wind_spd, wind_drct = estimate_on_sky_conditions(on_sky_file, on_sky_path)
+    # After all simulations are run, fetch and display results
+    for i in range(len(amps)):
+        for i in range(on_sky.shape[0]):
+            folder = f"A_keck_scao_lgs_gc_ws={amps[i]}mas_{on_sky[i][0]}"
+            metrics_file = base_root + folder + "_sim_results.txt"
+            sim_dir = base_root + folder + "/"
+            print(f"\n\n **** Total Jitter = {amps[i]} mas ****")
+            strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, metrics_file, 
+                                                                 skysub=False, apersize=0.3)
 
-            maos_cmd = f"maos -o {out_dirs[i]} -c {top_configs[i]} plot.all={plotall} plot.setup={plotsetup} atm.r0z={r0z} atm.wt={turbulence} atm.ws={wind_spd} atm.wddeg={wind_drct} -O"
-            print("Running %s" % maos_cmd)
-            print("Simulation results will be stored in %s\n" % out_dirs[i])
-            try:
-                # os.system(maos_cmd)
-                print(maos_cmd)
-            except KeyboardInterrupt:
-                print("MAOS simulations interrupted. Aborting...")
-                return
-    
-        # After all simulations are run, fetch and display results
-        for i in range(len(out_dirs)):
-            calc_strehl(out_dirs[i], metrics_files[i], skysub=False, apersize=aper)
-    
-    return
+            # Currently comparing to on_sky only at 2.12 microns
+            delta_strehl = abs(float(on_sky[i][2]) - strehl_array[-1])
+            delta_fwhm = abs(float(on_sky[i][3]) - fwhm_array[-1])
+            delta_rmswfe = abs(float(on_sky[i][4]) - rmswfe_array[-1])
+            if (delta_strehl <= thres) & (delta_fwhm <= thres):
+                tuple = (r0, l0, strehl_array[-1], delta_strehl, fwhm_array[-1], delta_fwhm, 
+                         rmswfe_array[-1], delta_rmswfe)
+                best.append(tuple)
+
+    # Sort resultant 'best' tuples based on delta Strehl values
+    best.sort(key=lambda tup: tup[3])
+    print("\n\n***** Best combinations *****")
+    print("r0 | l0 | Strehl | Delta Strehl | FWHM (mas) | Delta FWHM (mas) | RMS WFE (nm) | Delta RMS WFE (nm)")
+    print(best)
+    return best
 
 def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
     """
@@ -1837,8 +1841,13 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
     l0s    : array, variable length, dtype=float
         Array of NCPA surf l0 values for which to run MAOS base Keck simulation
 
-    on_sky : float
-        On-sky Strehl quantity for comparison
+    on_sky : 2D-array, variable length, dtype=mixed (str + float)
+        Array containing the frame names, their locations, and metrics for on-sky
+        data. The frame name is the name ONLY (no path or file suffix), while the 
+        location must be a FULL path (not relative). An example row of this array:
+
+        ['c0103', '/u/bdigia/work/ao/single_psfs/good_run_psfs/', 0.303,
+         53.49, 369.5]
 
     thres  : float, default = 0.05
         Threshold for determining if a phase screen is "best" for output
@@ -1854,51 +1863,60 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
 
     By Brooke DiGia
     """
-    base_root = "/u/bdigia/work/ao/keck/maos/keck/base/"
+    base_root = "/u/bdigia/work/ao/keck/maos/keck/my_base/"
     best = []
+
+    # Convert on_sky array to numpy array in case user
+    # did not input it as such
+    on_sky = np.array(on_sky)
 
     for r0 in r0s:
         for l0 in l0s:
-            # Set MAOS command based on current r0 and l0
-            maos_cmd = f"""maos -o A_keck_scao_lgs_gc_r0={r0}_l0={l0} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 surf = ["Keck_ncpa_rmswfe130nm.fits", "'r0={r0};l0={l0};ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"] -O"""
+            for i in range(on_sky.shape[0]):
+                # Get atmospheric conditions for current on_sky frame
+                fried, turbpro, windspd, winddrct = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", on_sky[i][1])
 
-            cwd = os.getcwd()
-            # Must be in MAOS simulation directory to run successfully
-            if cwd != base_root:
-                print("Current working directory (CWD) is %s" % cwd)
-                print("Moving CWD to MAOS simulation directory...\n")
-                os.chdir(base_root)
+                # Set MAOS command based on current r0 and l0
+                maos_cmd = f"""maos -o A_keck_scao_lgs_gc_r0={r0}_l0={l0}_{on_sky[i][0]} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 surf=["Keck_ncpa_rmswfe130nm.fits", "'r0={r0};l0={l0};ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"] atm.r0z={fried} atm.wt={turbpro} atm.ws={windspd} atm.wddeg={winddrct} -O"""
 
-            try:
-                os.system(maos_cmd)
-            except Exception as error:
-                print("Error running MAOS: ", error)
-                return
+                cwd = os.getcwd()
+                # Must be in MAOS simulation directory to run successfully
+                if cwd != base_root:
+                    print("Current working directory (CWD) is %s" % cwd)
+                    print("Moving CWD to MAOS simulation directory...\n")
+                    os.chdir(base_root)
+
+                try:
+                    os.system(maos_cmd)
+                except Exception as error:
+                    print("Error running MAOS: ", error)
+                    return
 
     # After all simulations are run, fetch and display results
     for r0 in r0s:
         for l0 in l0s:
-            folder = f"A_keck_scao_lgs_gc_r0={r0}_l0={l0}"
-            metrics_file = base_root + folder + "_sim_results.txt"
-            sim_dir = base_root + folder + "/"
-            print(f"\n\n **** r0 = {r0} | l0 = {l0} ****")
-            strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, 
-                                                                 metrics_file, 
-                                                                 skysub=False, 
-                                                                 apersize=0.3)
-            # Currently comparing to on_sky only at 2.12 microns
-            delta_strehl = abs(on_sky[0] - strehl_array[-1])
-            delta_fwhm = abs(on_sky[1] - fwhm_array[-1])
-            delta_rmswfe = abs(on_sky[2] - rmswfe_array[-1])
-            if delta_strehl <= thres:
-                tuple = (r0, l0, strehl_array[-1], delta_strehl, fwhm_array[-1], delta_fwhm, rmswfe_array[-1], delta_rmswfe)
-                best.append(tuple)
+            for i in range(on_sky.shape[0]):
+                folder = f"A_keck_scao_lgs_gc_r0={r0}_l0={l0}_{on_sky[i][0]}"
+                metrics_file = base_root + folder + "_sim_results.txt"
+                sim_dir = base_root + folder + "/"
+                print(f"\n\n **** r0 = {r0} | l0 = {l0} ****")
+                strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, 
+                                                                     metrics_file, 
+                                                                     skysub=False, 
+                                                                     apersize=0.3)
+                # Currently comparing to on_sky only at 2.12 microns
+                delta_strehl = abs(float(on_sky[i][2]) - strehl_array[-1])
+                delta_fwhm = abs(float(on_sky[i][3]) - fwhm_array[-1])
+                delta_rmswfe = abs(float(on_sky[i][4]) - rmswfe_array[-1])
+                if (delta_strehl <= thres) & (delta_fwhm <= thres):
+                    tuple = (r0, l0, strehl_array[-1], delta_strehl, fwhm_array[-1], 
+                             delta_fwhm, rmswfe_array[-1], delta_rmswfe)
+                    best.append(tuple)
 
     # Sort resultant 'best' tuples based on delta Strehl values
-    best.sort(key=lambda tup: tup[3], reverse=True)
+    best.sort(key=lambda tup: tup[3])
     print("\n\n***** Best combinations *****")
     print("r0 | l0 | Strehl | Delta Strehl | FWHM (mas) | Delta FWHM (mas) | RMS WFE (nm) | Delta RMS WFE (nm)")
-    
     print(best)
     return best
 
