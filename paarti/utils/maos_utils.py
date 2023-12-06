@@ -10,7 +10,6 @@ from paarti.psf_metrics import metrics
 from paarti.utils import keck_utils
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 import glob
-import readbin
 from scipy import stats
 import scipy, scipy.misc, scipy.ndimage
 import matplotlib.pyplot as plt
@@ -493,6 +492,9 @@ def print_wfe_metrics(directory='./', seed=10):
     closed_mean_nm : array, len=3, dtype=float
         Array containing WFE metrics for closed-loop MAOS results
     """
+    # Import the MAOS readbin function
+    import readbin
+    
     results_file = f'{directory}Res_{seed}.bin'
     results = readbin.readbin(results_file)
     print("Looking in directory:", directory)
@@ -654,6 +656,8 @@ def read_maos_psd(psd_input_file, type='jitter'):
     psd            : array, dtype=float
         PSD array with units attached
     """
+    import readbin
+    
     if psd_input_file.endswith('fits'):
         psd_in = fits.getdata(psd_input_file)
     else:
@@ -792,8 +796,9 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
                               fwhm='(mas)'))
 
     # Get the PSF .fits files from the input simulation directory
-    print(sim_dir, f'evlpsfcl_{sim_seed}_x0_y0.fits')
-    fits_files = glob.glob(sim_dir + f'evlpsfcl_{sim_seed}_x0_y0.fits')
+    path = sim_dir + f'evlpsfcl_{sim_seed}_x0_y0.fits'
+    print(path)
+    fits_files = glob.glob(path)
     print(fits_files)
     psf_all_wvls = fits.open(fits_files[0])
     nwvl = len(psf_all_wvls)
@@ -1748,7 +1753,7 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
 
     Inputs:
     ------------
-    amp    : array, variable length, dtype=float
+    amps   : array, variable length, dtype=float
         Total vibration-jitter amplitudes to be input into make_keck_vib_psd()
 
     on_sky : 2D-array, variable length, dtype=mixed (str + float)
@@ -1780,16 +1785,16 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
     # did not input it as such
     on_sky = np.array(on_sky)
 
-    for i in range(len(amps)):
+    for amp in amps:
     	for i in range(on_sky.shape[0]):
             # Get atmospheric conditions for current on_sky frame
             fried, turbpro, windspd, winddrct = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", on_sky[i][1])
             
             # Make new PSD based on input total jitter amplitude
-            psd_file = keck_utils.make_keck_vib_psd(amps[i])
+            psd_file = keck_utils.make_keck_vib_psd(amp)
         
             # Set MAOS command
-            folder = f"A_keck_scao_lgs_gc_ws={amps[i]}mas_{on_sky[i][0]}"
+            folder = f"A_keck_scao_lgs_gc_ws={amp}mas_{on_sky[i][0]}"
             maos_cmd = f"""maos -o {folder} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 sim.wspsd={psd_file} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspd} atm.wddeg={winddrct} -O"""
 
             cwd = os.getcwd()
@@ -1802,12 +1807,12 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
             os.system(maos_cmd)
 
     # After all simulations are run, fetch and display results
-    for i in range(len(amps)):
+    for amp in amps:
         for i in range(on_sky.shape[0]):
-            folder = f"A_keck_scao_lgs_gc_ws={amps[i]}mas_{on_sky[i][0]}"
+            folder = f"A_keck_scao_lgs_gc_ws={amp}mas_{on_sky[i][0]}"
             metrics_file = base_root + folder + "_sim_results.txt"
             sim_dir = base_root + folder + "/"
-            print(f"\n\n **** Total Jitter = {amps[i]} mas ****")
+            print(f"\n\n **** Total Jitter = {amp} mas ****")
             strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, metrics_file, 
                                                                  skysub=False, apersize=0.3)
 
@@ -1816,14 +1821,14 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
             delta_fwhm = abs(float(on_sky[i][3]) - fwhm_array[-1])
             delta_rmswfe = abs(float(on_sky[i][4]) - rmswfe_array[-1])
             if (delta_strehl <= thres) & (delta_fwhm <= thres):
-                tuple = (r0, l0, strehl_array[-1], delta_strehl, fwhm_array[-1], delta_fwhm, 
+                tuple = (amp, strehl_array[-1], delta_strehl, fwhm_array[-1], delta_fwhm, 
                          rmswfe_array[-1], delta_rmswfe)
                 best.append(tuple)
 
     # Sort resultant 'best' tuples based on delta Strehl values
-    best.sort(key=lambda tup: tup[3])
+    best.sort(key=lambda tup: tup[2])
     print("\n\n***** Best combinations *****")
-    print("r0 | l0 | Strehl | Delta Strehl | FWHM (mas) | Delta FWHM (mas) | RMS WFE (nm) | Delta RMS WFE (nm)")
+    print("Jitter amplitude (mas) | Strehl | Delta Strehl | FWHM (mas) | Delta FWHM (mas) | RMS WFE (nm) | Delta RMS WFE (nm)")
     print(best)
     return best
 
@@ -1976,7 +1981,7 @@ KAI pipeline unchanged in its own repository.
 """
 
 def calc_strehl_on_sky(file_list, out_file, apersize=0.3, 
-                       instrument=instruments.default_inst,
+                       instrument=None,
                        skysub=False):
     """
     Calculate the Strehl, FWHM, and RMS WFE for each image in a
@@ -2007,6 +2012,9 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
     skysub    : boolean (def = False)
         Option to perform sky subtraction on input PSF
     """
+    from kai import instruments
+    if instrument is None:
+        instruments.default_inst
 
     # Setup the output file and format.
     _out = open(out_file, 'w')
@@ -2092,7 +2100,12 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
     return strehls
 
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
-                              skysub, instrument=instruments.default_inst):
+                              skysub, instrument=None):
+
+
+    from kai import instruments
+    if instrument is None:
+        instruments.default_inst    
     # Read in the image and header.
     img, hdr = fits.getdata(img_file, header=True)
     wavelength = instrument.get_central_wavelength(hdr) # microns
