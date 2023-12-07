@@ -35,7 +35,38 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 6.0 	8.5 	1   	0.1 	nd2 	0
 0.0 	6.0 	1   	0.1 	nd3 	0"""
 
-def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
+# The color-correction dictionary from the Strehl Calc notebook
+# Original Source Bessell 1994 [TBC]
+color_correction_dict = {
+    "u'": {"M":1.0, "K":1.5, "G":1.13, "A0":0.94},
+    "g'": {"M":0.27, "K":1.03, "G":-0.30, "A0":-0.08},
+    "r'": {"M":-0.65, "K":-1.24, "G":-0.74, "A0":0.17},
+    "i'": {"M":-1.50, "K":-3.34, "G":-0.85, "A0":0.40},
+    "Z": {"M":-1.82, "K":-3.11, "G":-0.93, "A0":0.29},
+    "Y": {"M":-2.18, "K":-2.86, "G":-1.02, "A0":0.17},
+    "J": {"M":-2.70, "K":-2.50, "G":-1.15, "A0":0.00},
+    "H": {"M":-3.80, "K":-3.20, "G":-1.49, "A0":0.00},
+    "K'": {"M":-4.90, "K":-3.40, "G":-1.52, "A0":0.00},
+    "Ks": {"M":-4.90, "K":-3.40, "G":-1.52, "A0":0.00},
+    "K": {"M":-4.90, "K":-3.40, "G":-1.52, "A0":0.00},
+    "L'": {"M":-5.07, "K":-3.46, "G":-1.57, "A0":0.00},
+    "M'": {"M":-4.98, "K":-3.39, "G":-1.53, "A0":0.00}
+}
+#Filter Name	lambd	delta_lambd	Jy	QE
+# g'	0.467	0.138	3991	0.87
+# r'	0.616	0.138	3174	0.88
+# i'	0.747	0.154	2593	0.85
+# Z	0.882	0.12	2232	0.65
+
+
+ngs_filter_dict = {
+    "g'": {"lambda":0.467e-6, "delta_lambda":0.138e-6, "F_nu":3991, "QE":0.87},
+    "r'": {"lambda":0.616e-6, "delta_lambda":0.138e-6, "F_nu":3174, "QE":0.88},
+    "i'": {"lambda":0.747e-6, "delta_lambda":0.154e-6, "F_nu":2593, "QE":0.85},
+    "Z": {"lambda":0.882e-6, "delta_lambda":0.12e-6, "F_nu":2232, "QE":0.65}
+}
+
+def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0, spt='G'):
     """
     Calculate the number of photons, number of background photons,
     and noise equivalent angle for a natural guide star.
@@ -51,6 +82,9 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     ----------------
     wfs_int_time : float
         Integration time of the WFS.
+
+    spt :  str
+        Spectral type of guide star. Used only for NGSWFS
 
     Outputs:
     ------------
@@ -78,8 +112,8 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     # List of pre-defined wave-front sensors (wfs)
     # LGSWFS-OCAM2K  : KAPA and KAPA+HODM simulation setups
     # LGS-HODM-HOWFS : KAPA+HODM+HOWFS
-    wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 
-                'TRICK-H', 'TRICK-K', 'STRAP']
+    wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS',
+                'TRICK-H', 'TRICK-K', 'STRAP','NGSWFS']
 
     if wfs not in wfs_list:
         raise RuntimeError("keck_nea_photons: Invalid WFS.")
@@ -242,6 +276,26 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
 
         # ROI
         pix_per_ap = 4
+    elif wfs=='NGSWFS':
+        band = "NGS_OPEN"    # not actually at V
+        
+        # side length of square subaperture (m)
+        side = 0.5625
+        
+        # from Carlos' config file
+        ps = 3.0
+        sigma_e = 3.0
+        
+        # from KAON 1303 Table 20
+        theta_beta = 1.5 * ( math.pi/180.0 ) / ( 60.0*60.0 )
+        
+        # As opposed to LGSWFS we remove the QE here and re-apply it later. 
+        # Using the 0.23 value from the Strehl Calc notebook for Keck AO NGS,
+        # science case = NGS Eng
+        throughput = 0.23
+        
+        # quadcell
+        pix_per_ap = 4        
 
     SNR, sigma_theta, Np, Nb = keck_nea_photons_any_config(wfs,
                                                            side,
@@ -252,11 +306,12 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
                                                            sigma_e,
                                                            pix_per_ap,
                                                            wfs_int_time,
-                                                           m)
+                                                           m,
+                                                           spt=spt)
     return SNR, sigma_theta, Np, Nb
 
 def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
-                                band, sigma_e, pix_per_ap, time, m):
+                                band, sigma_e, pix_per_ap, time, m,spt='G'):
     """
     Inputs:
     ----------
@@ -315,7 +370,10 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     print('Assumptions:')
     print(f'  Wave-Front Sensor       = {wfs}')
     print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
-    print(f'  Throughput (w QE)       = {throughput:.2f}')
+    if wfs == 'NGSWFS':
+        print(f'  Throughput              = {throughput:.2f}')
+    else:
+        print(f'  Throughput (w QE)       = {throughput:.2f}')
     print(f'  Plate Scale             = {ps:.3f} arcsec/pix')
     print(f'  Spot Size Diameter      = {theta_beta*206265:.3f} arcsec')
     print(f'  Filter                  = {band}')
@@ -323,10 +381,12 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     print(f'  Pixels per Subaperture  = {pix_per_ap}')
     print(f'  Integration Time        = {time:.4f} s')
     print(f'  Guide Star Magnitude    = {m:.2f}')
+    if wfs == 'NGSWFS':
+        print(f'  Guide Star Spectral Type= {spt}')
     print()
     
     # Calculate number of photons and background photons
-    Np, Nb = n_photons(side, time, m, band, ps, throughput)
+    Np, Nb = n_photons(side, time, m, band, ps, throughput,spt)
 
     """
     # Fix LGS background
@@ -362,7 +422,7 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     
     return SNR, sigma_theta, Np, Nb
     
-def n_photons(side, time, m, band, ps, throughput):
+def n_photons(side, time, m, band, ps, throughput, spt='G'):
     """
     Calculate the number of photons from a star and
     background incident on a square area in a given time 
@@ -395,6 +455,11 @@ def n_photons(side, time, m, band, ps, throughput):
     throughput : float
         Throughput with quantum efficiency
 
+    Optional Inputs:
+    ----------------
+    spt        : string
+        Spectral type of guide star. Used only for NGS_OPEN filter
+
     Outputs:
     ------------
     n_ph_star  : float
@@ -406,40 +471,72 @@ def n_photons(side, time, m, band, ps, throughput):
     # Fixed parameters
     c = 2.99792458e8   # Speed of light (m s^-1)
     h = 6.6260755e-27  # Plank constant (erg s)
-    # Bands' names, effective wavelengths (microns), equivalent widths
-    # (microns), fluxes (10^-11 erg s^-1 cm^-2 A^-1) and background
-    # in (magnitudes arcsec^-2) [1, 2, 3].
-    bands = {'name': ["U", "B", "V", "R", "I", "J", "H", "K"],
-             'lambd': [0.366, 0.438, 0.545, 0.641, 0.798, 1.22, 1.63, 2.19],
-             'delta_lambd': [0.0665, 0.1037, 0.0909, 0.1479, 0.1042, 0.3268, 0.2607,
-                             0.5569],
-             'phi_erg': [417.5, 632, 363.1, 217.7, 112.6, 31.47, 11.38, 3.961],
-             'bkg_m': [21.6, 22.3, 21.1, 20.3, 19.2, 14.8, 13.4, 12.6]}
-
-    # Get band's data
-    band_idx = np.where(np.array(bands['name']) == band)[0][0]
-    # Band effective wavelength (microns)    
-    lambd = float(bands['lambd'][band_idx])
-    # Band equivalent width (microns)
-    delta_lamb = float(bands['delta_lambd'][band_idx])
-    # Flux (erg s^-1 cm^-2 A^-1)
-    phi_erg = float(bands['phi_erg'][band_idx])
-    # Background magnitude (arcsec^-2)    
-    bkg_m = float(bands['bkg_m'][band_idx])
-
-    # Band frequency (Hz)
-    f = c / (lambd * 1e-6)
-    # Numeric flux (s^-1 cm^-2 A^-1)
-    phi_n = phi_erg * 1e-11 / ( h * f )
-    # Zeropoint (m = 0) number of photons on detector
-    n_ph_0 = phi_n * ( (side * 1e2) ** 2) * time * delta_lamb * 1e4 * throughput  
-    # Number of star photons
-    n_ph_star = n_ph_0 * ( 10**(-0.4 * m) ) 
-
-    # Number of background photons (px^-1)
-    n_ph_bkg = n_ph_0 * ( 10**(-0.4 * bkg_m) ) * (ps**2)  
     
-    return n_ph_star, n_ph_bkg
+    if band == 'NGS_OPEN':
+        # The NGS WFS is a special case, as it has no filter.
+        # The number of photons depends on the spt of the source and 
+        # is the sum of contributions from several different filters. 
+        # The weights are taken from the Strehl Calc notebook.
+
+        ngs_filter_list = ["g'","r'","i'", "Z"]
+        # Get the color correction factor for the given spectral type
+
+        # Initialize the number of photons        
+        n_ph_star = 0
+
+        # Loop over the contributing filters
+        for filter_name in ngs_filter_list: 
+            #Photons/cm^2/s/A - From Strehl Calc notebook - TODO: Need to double check origin of 6.62 number
+            phi_n = ngs_filter_dict[filter_name]['F_nu']/(6.62*ngs_filter_dict[filter_name]['lambda'])
+
+            # Zeropoint (m = 0) number of photons on detector
+            n_ph_0 = phi_n * ( (side * 1e2) ** 2) * time * ngs_filter_dict[filter_name]['delta_lambda'] * 1e4 * throughput * ngs_filter_dict[filter_name]['QE']
+
+            # Color correction for this filter and spectral type, assuming that the input m is V-band
+            color_correction = color_correction_dict[filter_name][spt]
+            #The filter mag after color correction
+            filter_mag = m + color_correction
+            
+            # Number of star photons
+            n_ph_star += n_ph_0 * ( 10**(-0.4 * filter_mag) )
+
+        return n_ph_star, 0
+    
+    else:
+        # Bands' names, effective wavelengths (microns), equivalent widths
+        # (microns), fluxes (10^-11 erg s^-1 cm^-2 A^-1) and background
+        # in (magnitudes arcsec^-2) [1, 2, 3].
+        bands = {'name': ["U", "B", "V", "R", "I", "J", "H", "K"],
+                'lambd': [0.366, 0.438, 0.545, 0.641, 0.798, 1.22, 1.63, 2.19],
+                'delta_lambd': [0.0665, 0.1037, 0.0909, 0.1479, 0.1042, 0.3268, 0.2607,
+                                0.5569],
+                'phi_erg': [417.5, 632, 363.1, 217.7, 112.6, 31.47, 11.38, 3.961],
+                'bkg_m': [21.6, 22.3, 21.1, 20.3, 19.2, 14.8, 13.4, 12.6]}
+
+        # Get band's data
+        band_idx = np.where(np.array(bands['name']) == band)[0][0]
+        # Band effective wavelength (microns)    
+        lambd = float(bands['lambd'][band_idx])
+        # Band equivalent width (microns)
+        delta_lamb = float(bands['delta_lambd'][band_idx])
+        # Flux (erg s^-1 cm^-2 A^-1)
+        phi_erg = float(bands['phi_erg'][band_idx])
+        # Background magnitude (arcsec^-2)    
+        bkg_m = float(bands['bkg_m'][band_idx])
+
+        # Band frequency (Hz)
+        f = c / (lambd * 1e-6)
+        # Numeric flux (s^-1 cm^-2 A^-1)
+        phi_n = phi_erg * 1e-11 / ( h * f )
+        # Zeropoint (m = 0) number of photons on detector
+        n_ph_0 = phi_n * ( (side * 1e2) ** 2) * time * delta_lamb * 1e4 * throughput  
+        # Number of star photons
+        n_ph_star = n_ph_0 * ( 10**(-0.4 * m) ) 
+
+        # Number of background photons (px^-1)
+        n_ph_bkg = n_ph_0 * ( 10**(-0.4 * bkg_m) ) * (ps**2)  
+        
+        return n_ph_star, n_ph_bkg
 
 def keck_ttmag_to_itime(ttmag, wfs='strap'):
     """
