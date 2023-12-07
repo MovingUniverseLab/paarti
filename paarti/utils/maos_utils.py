@@ -292,7 +292,7 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0, spt='G'):
         # As opposed to LGSWFS we remove the QE here and re-apply it later. 
         # Using the 0.23 value from the Strehl Calc notebook for Keck AO NGS,
         # science case = NGS Eng
-        throughput = 0.23
+        throughput = 0.233
         
         # quadcell
         pix_per_ap = 4        
