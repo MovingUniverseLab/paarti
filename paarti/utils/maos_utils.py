@@ -19,6 +19,7 @@ import urllib
 from pandas import read_csv
 from kai import instruments
 from bs4 import BeautifulSoup
+import readbin # from MAOS
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
 MinMag  MaxMag  Integ   Gain	SFW 	Sky
@@ -492,9 +493,6 @@ def print_wfe_metrics(directory='./', seed=10):
     closed_mean_nm : array, len=3, dtype=float
         Array containing WFE metrics for closed-loop MAOS results
     """
-    # Import the MAOS readbin function
-    import readbin
-    
     results_file = f'{directory}Res_{seed}.bin'
     results = readbin.readbin(results_file)
     print("Looking in directory:", directory)
@@ -797,9 +795,8 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
 
     # Get the PSF .fits files from the input simulation directory
     path = sim_dir + f'evlpsfcl_{sim_seed}_x0_y0.fits'
-    print(path)
+    print("PATH = ", path)
     fits_files = glob.glob(path)
-    print(fits_files)
     psf_all_wvls = fits.open(fits_files[0])
     nwvl = len(psf_all_wvls)
 
@@ -1431,7 +1428,7 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         hdr = hdu.header
         
         # Date of observation, parsed into year, month, day (UT)
-        date = hdr["DATE"]
+        date = hdr["DATE-OBS"]
         year = date[:4]
         month = date[5:7]
         day = date[8:10]
@@ -1484,20 +1481,28 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
             print(f"{cfht} exists in directory {saveto}, not downloading.")
 
         # Pull PHTO station data based on year of observation date
-        phto_url = "http://weather.uwyo.edu/cgi-bin/sounding?region=naconf&TYPE=TEXT%3ALIST&YEAR=" + year + "&MONTH=" + month + "&FROM=" + day + "00&TO=" + day + "00&STNM=91285"
+        phto_url = f"http://weather.uwyo.edu/cgi-bin/sounding?region=naconf&TYPE=TEXT%3ALIST&YEAR={year}&MONTH={month}&FROM={day}00&TO={day}00&STNM=91285"
 
         phto = "phto.%s.dat" % date_for_massdimm
         phto_clean = "phto.%s_cleaned.dat" % date_for_massdimm
-        if not os.path.exists(saveto + phto):
+        if not os.path.exists(saveto + phto_clean):
             try:
                 urllib.request.urlretrieve(phto_url, saveto + phto)
+                to_save = ''
                 with open(saveto + phto) as html:
                     soup = BeautifulSoup(html, 'html.parser')
-                    to_save = soup.find_all('pre')[0]
-                    for lines in to_save:
+                    try:
+                        to_save = soup.find_all('pre')[0]
+                    except Exception as error:
+                        print(f"Error while parsing html soup: {error}")
+                        to_save = "No information"
+                        for lines in to_save:
+                            with open(saveto + phto_clean, 'w') as f:
+                                f.write(line)
+                for lines in to_save:
+                    with open(saveto + phto_clean, 'w') as f:
                         line = str(lines.text)
-                        with open(saveto + phto_clean, 'w') as f:
-                            f.write(line)
+                        f.write(line)
                 print(f"{phto} saved to {saveto}")
             except Exception as error:
                 print(f"Error while downloading {phto} from {phto_url}:",
@@ -1608,13 +1613,23 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         cfht_time_in_hrs = np.add(cfht_hr, np.divide(cfht_min, 60.0))
 
         # Load in PHTO data and parse into individual arrays
-        phto_table = read_csv(saveto + phto_clean, delim_whitespace=True, 
+        try:
+            phto_table = read_csv(saveto + phto_clean, delim_whitespace=True, 
                               usecols=[1,6,7], skiprows=[0,1,2,3,4], 
                               names=['hght', 'drct', 'sknt'], 
                               skipfooter=1, engine='python')
-        phto_hghts = np.asarray(phto_table['hght'], dtype=float)
-        phto_wddir = np.array(phto_table['drct'])
-        phto_wdspd = np.array(phto_table['sknt']) * ( 1852.0 / (60.0 * 60.0) )
+            phto_hghts = np.asarray(phto_table['hght'], dtype=float)
+            phto_wddir = np.array(phto_table['drct'])
+            phto_wdspd = np.array(phto_table['sknt']) * ( 1852.0 / (60.0 * 60.0) )
+        except Exception as error:
+            file = open(saveto + phto_clean, 'r')
+            content = file.read()
+            file.close()
+            if content == "No information":
+                print("PHTO Information Not Currently Available")
+            phto_hghts = [0.0]
+            phto_wddir = [0.0]
+            phto_wdspd = [0.0]
 
         # PHTO heights are relative to sea level, but MAOS atm.ht is
         # height above telescope, so we need to subtract the height
@@ -1925,23 +1940,32 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
     print(best)
     return best
 
-def make_strehl_plot(maos_txts, saveto, file_suffix=".pdf"):
+def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto, 
+                          file_suffix=".pdf"):
     """
     Function to take an array of MAOS simulation results
-    and plot the Strehl results at 2.12 microns versus the 
-    corresponding on-sky Strehl results (available at only
+    and plot the metric results at 2.12 microns versus the 
+    corresponding on-sky metric results (available at only
     2.12 microns). 
 
     Inputs:
     ----------
-    maos_txts   : array, variable length, dtype=string
-        Array of MAOS simulation Strehl calculator output
-        text files containing results to plot.
+    metric      : string
+	Which metric to make the plot for (Strehl or FWHM)
+
+    sim_dirs    : array, variable length, dtype=string
+        Array of MAOS simulation output folder names.
+        E.g. "~/base/A_keck_scao_lgs_gc". Don't forget
+        the trailing slash! FULL paths
+
+    sky_metrics : array, len(sim_dirs), dtype=float
+	Array of on-sky Strehl values, to be plotted against
+        MAOS Strehls
 
     saveto      : string
         Location to save plot images
 
-    file_suffix : string, default=.pdf
+    file_suffix : string, default=".pdf"
         File type for saving plot (PDF or PNG)
 
     Outputs:
@@ -1951,28 +1975,223 @@ def make_strehl_plot(maos_txts, saveto, file_suffix=".pdf"):
 
     By Brooke DiGia
     """
-    filename = "MAOS_Strehl_Plot"
-    on_sky = np.zeros(len(maos_txts))
-    maos = np.zeros(len(maos_txts))
-    on_sky_root = "/u/bdigia/work/ao/single_psfs/good_run_psfs/"
+    if (metric == "Strehl") or (metric == "strehl"):
+        filename = "MAOS_PAARTI_Strehl_vs_Sky"
+    elif (metric == "FWHM") or (metric == "fwhm"):
+        filename = "MAOS_PAARTI_FWHM_vs_Sky"
+    else:
+        print("Error: Invalid metric entered. Must be Strehl or FWHM")
+        return 
+        
+    maos = np.zeros(len(sim_dirs))
+    for i in range(len(sim_dirs)):
+        metrics_output = sim_dirs[i][:-1] + "_sim_results.txt"
+        print(f"Grabbing results from {sim_dirs[i]}...")
 
-    for i in range(len(maos_txts)):
-        frame = maos_txts[i][-9:-4]
-        on_sky = calc_strehl_on_sky([on_sky_root + frame + "_psf.fits"], 
-                                     on_sky_root + frame + "_GC_Strehl.txt", 
-                                     apersize=0.3)[0]
-        # Read in MAOS result at 2.12 microns only
-        table = read_csv(maos_txts[i], delim_whitespace=True, 
-                         skiprows=[0,1,2,3,4,5], usecols=[1], names=['strehl'])
-        print("TABLE")
-        print(table['strehl'])
-
-    plt.figure()
-    plt.xlabel("MAOS Strehl (calculated via PAARTI)")
-    plt.ylabel("On-Sky GC Strehl")
-    plt.plot(maos, on_sky, "bo")
+	# Calculate Strehl + metrics for ith MAOS simulation
+        strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dirs[i], metrics_output,
+                                                             skysub=False, apersize=0.3)
+        
+	# Grab 2.12 micron metric only
+        if (metric == "Strehl") or (metric == "strehl"):
+            maos[i] = strehl_array[-1]
+        elif (metric == "FWHM") or (metric == "fwhm"):
+            maos[i] = fwhm_array[-1]
+    
+    # Plotting
+    fig, ax = plt.subplots()
+    ax.set_xlabel(f"MAOS {metric} (calculated via PAARTI)")
+    ax.set_ylabel(f"On-Sky GC {metric}")
+    ax.set_title(f"On-Sky {metric} versus MAOS {metric}")
+    ax.plot(maos, sky_metrics, "bo")
+    ax.axline((0, 0), slope=1)
+    ax.set_xlim(0.0, 0.5)
+    ax.set_ylim(0.0, 0.5)
     plt.savefig(saveto + filename + file_suffix)
     return
+
+def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
+    """
+    Function to parse MAOS simulation results and make a metric 
+    (e.g. Strehl/FWHM) vs. wavelength plot for all simulated
+    wavelengths. The metric data is averaged over multiple simulations
+    (e.g. for 2.12 microns, multiple MAOS sims are averaged to compute
+    the Strehl/FWHM, and the standard deviation of these measurements is
+    included as an error bar.
+
+    Inputs:
+    ----------
+    metric      : string
+	String identifier for which type of metric to make the plot.
+        Valid metrics include: Strehl, FWHM, RMS WFE, and R_EE80
+    
+    sim_dirs    : array, variable length, dtype=string
+        Array of MAOS simulation output folder names.
+        E.g. "~/base/A_keck_scao_lgs_gc". Don't forget
+        the trailing slash! FULL paths
+
+    saveto      : string
+        Location to save plot images
+
+    nwvl        : int
+	Number of wavelengths in each MAOS simulation
+
+    file_suffix : string, default=".pdf"
+        File type for saving plot (PDF or PNG)
+
+    Outputs:
+    ----------
+    None, plot image (PDF or PNG) saved to desired output
+    folder
+
+    By Brooke DiGia
+    """
+    data = np.zeros((len(sim_dirs), nwvl))
+    # Loop through each simulation directory
+    for i in range(len(sim_dirs)):
+        metrics_output = sim_dirs[i][:-1] + "_sim_results.txt"
+        print(f"Grabbing results from {sim_dirs[i]}...")
+
+        # Calculate Strehl + metrics for ith MAOS simulation
+        strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dirs[i], metrics_output,
+                                                             skysub=False, apersize=0.3)
+
+        # Store metrics
+        if (metric == "Strehl") or (metric == "strehl"):
+            data[i] = np.array(strehl_array)
+        elif (metric == "FWHM") or (metric == "fwhm"):
+            data[i] = np.array(fwhm_array)
+        elif (metric == "RMS WFE") or (metric == "RMSWFE") or \
+             (metric == "rms wfe") or (metric == "rmswfe"):
+            data[i] = np.array(rmswfe_array)
+        else:
+            print("Error: Invalid metric entered. Must be Strehl, FWHM, or RMS WFE")
+            return
+    
+    # Average over columns of 2D data (each column corresponds to a sim wvl)
+    maos_metrics = np.mean(data, axis=0)
+    maos_stddevs = np.std(data, axis=0) 
+    print(maos_metrics)
+    print(maos_stddevs)
+
+    # Plotting
+    wvls = [0.80, 1.00, 1.25, 1.65, 2.12]
+    filename = f"MAOS_{metric}_WVL_PLOT"
+    fig, ax = plt.subplots()
+    ax.set_xlabel(f"MAOS {metric} (calculated via PAARTI)")
+    ax.set_ylabel(f"{metric}")
+    ax.set_title(f"MAOS {metric} as a function of wavelength")
+    ax.errorbar(wvls, maos_metrics, yerr=maos_stddevs, fmt="bo", ecolor="black", capsize=4.0, capthick=2.0)
+    # ax.set_ylim(0.0, 0.6)
+    plt.savefig(saveto + filename + file_suffix)
+    return
+
+def run_int_time_spot_check(end_times, dt=1.0/472.0):
+    """
+    Function to run spot check (informal search) of multiple integration times by varying the
+    number of simulation steps only (i.e. sim.end)
+
+    Inputs:
+    --------
+    end_times : array, variable length, dtype=float
+        MAOS sim.end parameters to run
+
+    dt        : float, default=1.0/472.0
+        MAOS dt parameter
+
+    Outputs:
+    --------
+    None, MAOS simulation information printed to terminal
+
+    By Brooke DiGia
+    """
+    for i in range(len(end_times)):
+       print(f"************** INTEGRATION TIME = {int_time} ***************")
+       folder = f"A_keck_scao_lgs_gc_int_time={int_time}_01302024"
+       maos_cmd = f"""maos -o {folder} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 sim.end={end_times[i]} sim.seeds=[4] -O"""
+       os.system(maos_cmd)
+
+def generate_spreadsheet(files, whereto, on_sky_output, sim_output):
+    """
+    Function to
+
+    Inputs:
+    --------
+    files         : array, variable length, dtype=str
+        Array of absolute paths of on-sky files to include
+        in the spreadsheet, along with their simulation
+        counterparts
+
+    whereto       : string
+        ABSOLUTE path to location where spreadsheet.csv should
+        be saved. Don't forget the trailing slash!
+
+    on_sky_output : string
+        ABSOLUTE path to location where on-sky output metrics file
+        from calc_strehl_on_sky() should be saved
+
+    sim_output    : string
+        ABSOLUTE path to location where simulation output metrics file
+        from calc_strehl() should be saved
+
+    Outputs:
+    --------
+    None, prints information to terminal and writes to user-specified
+    text files
+
+    By Brooke DiGia
+    """
+    # Lots of data to store
+    frames = []
+    dates = []
+    exposures = []
+    dimm = []
+    mass = []
+    frieds = []
+    grnd_wind_spds = []
+    grnd_wind_dirs = []
+    strehls = []
+    fwhms = []
+    rmswfes = []
+    sim_strehls = []
+    sim_fwhms = []
+    sim_rmswfes = []
+    
+    for i in range(len(files)):
+       print(f"Opening {files[i]} ...\n")
+       hdul = fits.open(files[i])
+       hdr = hdul[0].header
+       print(f"Date of observation (UT): {hdr['DATE']}")
+       print(f"Exposure time (UT): {hdr['EXPSTART']} to {hdr['EXPSTOP']}")
+       print(f"Airmass: {hdr['AIRMASS']}")
+       fried, turbpro, windspd, winddrct = maos_utils.estimate_on_sky_conditions(files[i], root)
+       try:
+           strehl, fwhm, rmswfe = maos_utils.calc_strehl_on_sky([files[i]], on_sky_output)
+           strehls.append(strehl[-1])
+           fwhms.append(fwhm[-1])
+           rmswfes.append(rmswfe[-1])
+           sim_strehls, sim_fwhms, sim_rmswfes = maos_utils.calc_strehl(files[i], sim_output)
+       except Exception as error:
+           print(f"Error calculating Strehl for {files[i]}: {error}")
+           strehl = -1
+           fwhm = -1
+           rmswfe = -1
+     
+       frames.append(files[i][-14:-9])
+       dates.append(hdr['DATE'])
+       exp = str(hdr['EXPSTART']) + " to " + str(hdr['EXPSTOP'])
+       exposures.append(exp)
+       frieds.append(fried)
+       grnd_wind_dirs.append(winddrct[0])
+       grnd_wind_spds.append(windspd[0])
+       
+       with open('{whereto}spreadsheet.csv', 'a', newline='') as csvfile:
+           fields = ['On-Sky Frames', 'Date (UT)', 'Exposure Time (UT)', 'Wind Speed (m/s)', 'Wind Direction (deg)', 'Sky Obs Strehl', 'Sky Obs FWHM (mas)', 'Sky Obs RMS WFE (nm)']
+           writer = csv.DictWriter(csvfile, fieldnames=fields)
+           writer.writeheader()
+           writer.writerow({'On-Sky Frames':files[i][-14:-9], 'Date (UT)':hdr['DATE'], 'Exposure Time (UT)':exp, 'Wind Speed (m/s)':windspd[0], 'Wind Direction (deg)':winddrct[0], 'Sky Obs Strehl':strehl, 'MAOS Sim Strehl':sim_strehls[-1] , 'Sky Obs FWHM (mas)':fwhm, 'MAOS Sim FWHM (mas)':sim_fwhms[-1], 'Sky Obs RMS WFE (nm)':rmswfe, 'MAOS Sim RMSWFE (nm):sim_rmswfes[-1]'})
+       
+       return frames, dates, exposures, frieds, grnd_wind_spds, grnd_wind_dirs, strehls, sim_strehls, fwhms, sim_fwhms, rmswfes, sim_rmswfes
 
 """
 The following *_on_sky() functons are copied from the KAI repository, linked
@@ -1981,7 +2200,7 @@ KAI pipeline unchanged in its own repository.
 """
 
 def calc_strehl_on_sky(file_list, out_file, apersize=0.3, 
-                       instrument=None,
+                       instrument=instruments.default_inst,
                        skysub=False):
     """
     Calculate the Strehl, FWHM, and RMS WFE for each image in a
@@ -2012,10 +2231,6 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
     skysub    : boolean (def = False)
         Option to perform sky subtraction on input PSF
     """
-    from kai import instruments
-    if instrument is None:
-        instruments.default_inst
-
     # Setup the output file and format.
     _out = open(out_file, 'w')
 
@@ -2076,11 +2291,15 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
         # For each image, get the strehl, FWHM, RMS WFE, MJD, etc. and write to an
         # output file.
         strehls = []
+        fwhms = []
+        rmswfes = []
         for ii in range(len(file_list)):
             strehl, fwhm, rmswfe = calc_strehl_single_on_sky(file_list[ii], radius, 
                                                              dl_peak_flux_ratio, 
                                                              instrument=instrument, skysub=skysub)
             strehls.append(strehl)
+            fwhms.append(fwhm)
+            rmswfes.append(rmswfe)
             mjd = fits.getval(file_list[ii], instrument.hdr_keys['mjd'])
             dirname, filename = os.path.split(file_list[ii])
 
@@ -2097,7 +2316,7 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
             print(fmt_dat.format(img=filename, strehl=-1.0, rms=-1.0, 
                                  fwhm=-1.0, mjd=mjd))
         _out.close()
-    return strehls
+    return strehls, fwhms, rmswfes
 
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
                               skysub, instrument=None):
