@@ -489,10 +489,26 @@ def print_wfe_metrics(directory='./', seed=10):
     ------------
     open_mean_nm   : array, len=3, dtype=float
         Array containing WFE metrics for open-loop MAOS results
+        averaged over all the PSF evalution locations.
 
     closed_mean_nm : array, len=3, dtype=float
         Array containing WFE metrics for closed-loop MAOS results
+        averaged over all the PSF evalution locations.
+
+    open_xx_mean_nm   : array, shape=[N,3], dtype=float
+        Array containing WFE metrics for open-loop MAOS results
+        evaluated at each PSF location. Shape is [N, 3] where
+        N is the number of PSF locations. Will return None if
+        only a single PSF location. 
+
+    closed_xx_mean_nm : array, shape=[N,3], dtype=float
+        Array containing WFE metrics for closed-loop MAOS results
+        evaluated at each PSF location. Shape is [N, 3] where
+        N is the number of PSF locations. Will return None if
+        only a single PSF location.
+    
     """
+    # Field averaged results
     results_file = f'{directory}Res_{seed}.bin'
     results = readbin.readbin(results_file)
     print("Looking in directory:", directory)
@@ -503,14 +519,47 @@ def print_wfe_metrics(directory='./', seed=10):
     # Closed-loop WFE (nm): Piston removed, TT only, Piston+TT removed
     clos_mean_nm = np.sqrt(results[2].mean(axis=0)) * 1.0e9
 
+    # Field-dependent resutls
+    # Determine if we have a field-dependent WFE results file in extra/
+    results_xx_file = f'{directory}/extra/Resp_{seed}.bin'
+    if os.path.exists(results_xx_file):
+        results_xx = readbin.readbin(results_xx_file)
+
+        open_xx_mean_nm = np.zeros((results_xx[2].shape[0], 3), dtype=float)
+        clos_xx_mean_nm = np.zeros((results_xx[3].shape[0], 3), dtype=float)
+
+        # Loop through PSF positions and get RMS WFE in nm
+        for xx in range(open_xx_mean_nm.shape[0]):
+            
+            # Open-loop WFE (nm): Piston removed, TT only, Piston+TT removed
+            open_xx_mean_nm[xx] = np.sqrt(results_xx[2][xx].mean(axis=0)) * 1.0e9
+            
+            # Closed-loop WFE (nm): Piston removed, TT only, Piston+TT removed
+            clos_xx_mean_nm[xx] = np.sqrt(results_xx[3][xx].mean(axis=0)) * 1.0e9
+
+    else:
+        results_xx = None
+        open_xx_mean_nm = None
+        clos_xx_mean_nm = None
+
     print('---------------------')
     print('WaveFront Error (nm): [note, piston removed from all]')
     print('---------------------')
-    print(f'{"      ":<7s}  {"Total":>11s}  {"High_Order":>11s}  {"TT":>11s}')
-    print(f'{"Open  ":<7s}  {open_mean_nm[0]:11.1f}  {open_mean_nm[2]:11.1f}  {open_mean_nm[1]:11.1f}')
-    print(f'{"Closed":<7s}  {clos_mean_nm[0]:11.1f}  {clos_mean_nm[2]:11.1f}  {clos_mean_nm[1]:11.1f}')
+    print(f'{"Field Avg":<9s}  {"Total":>11s}  {"High_Order":>11s}  {"TT":>11s}')
+    print(f'{"---------":<9s}  {"-----------":>11s}  {"----------":>11s}  {"----------":>11s}')
+    print(f'{"Open     ":<9s}  {open_mean_nm[0]:11.1f}  {open_mean_nm[2]:11.1f}  {open_mean_nm[1]:11.1f}')
+    print(f'{"Closed   ":<9s}  {clos_mean_nm[0]:11.1f}  {clos_mean_nm[2]:11.1f}  {clos_mean_nm[1]:11.1f}')
 
-    return open_mean_nm, clos_mean_nm
+    if results_xx != None:
+        # Loop through PSF positions and print WFE metrics
+        for xx in range(open_xx_mean_nm.shape[0]):
+            print()
+            print(f'{"Pos ":<3s} {xx:<2d}')
+            print(f'{"-------":<9s}')
+            print(f'{"Open   ":<9s}  {open_xx_mean_nm[xx,0]:11.1f}  {open_xx_mean_nm[xx,2]:11.1f}  {open_xx_mean_nm[xx,1]:11.1f}')
+            print(f'{"Closed ":<9s}  {clos_xx_mean_nm[xx,0]:11.1f}  {clos_xx_mean_nm[xx,2]:11.1f}  {clos_xx_mean_nm[xx,1]:11.1f}')
+
+    return open_mean_nm, clos_mean_nm, open_xx_mean_nm, clos_xx_mean_nm
     
 def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
     """
@@ -2189,7 +2238,7 @@ def generate_spreadsheet(files, whereto, on_sky_output, sim_output):
            fields = ['On-Sky Frames', 'Date (UT)', 'Exposure Time (UT)', 'Wind Speed (m/s)', 'Wind Direction (deg)', 'Sky Obs Strehl', 'Sky Obs FWHM (mas)', 'Sky Obs RMS WFE (nm)']
            writer = csv.DictWriter(csvfile, fieldnames=fields)
            writer.writeheader()
-           writer.writerow({'On-Sky Frames':files[i][-14:-9], 'Date (UT)':hdr['DATE'], 'Exposure Time (UT)':exp, 'Wind Speed (m/s)':windspd[0], 'Wind Direction (deg)':winddrct[0], 'Sky Obs Strehl':strehl, 'MAOS Sim Strehl':sim_strehls[-1] , 'Sky Obs FWHM (mas)':fwhm, 'MAOS Sim FWHM (mas)':sim_fwhms[-1], 'Sky Obs RMS WFE (nm)':rmswfe, 'MAOS Sim RMSWFE (nm):sim_rmswfes[-1]'})
+           writer.writerow({'On-Sky Frames':files[i][-14:-9], 'Date (UT)':hdr['DATE'], 'Exposure Time (UT)':exp, 'Wind Speed (m/s)':windspd[0], 'Wind Direction (deg)':winddrct[0], 'Sky Obs Strehl':strehl, 'MAOS Sim Strehl':sim_strehls[-1] , 'Sky Obs FWHM (mas)':fwhm, 'MAOS Sim FWHM (mas)':sim_fwhms[-1], 'Sky Obs RMS WFE (nm)':rmswfe, 'MAOS Sim RMSWFE (nm)':sim_rmswfes[-1]})
        
        return frames, dates, exposures, frieds, grnd_wind_spds, grnd_wind_dirs, strehls, sim_strehls, fwhms, sim_fwhms, rmswfes, sim_rmswfes
 
