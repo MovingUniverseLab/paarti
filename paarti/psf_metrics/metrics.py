@@ -18,7 +18,7 @@ from photutils import aperture_photometry
 import multiprocessing as mp
 
 
-def calc_psf_metrics(psf_stack, parallel=False):
+def calc_psf_metrics(psf_stack, parallel=False, cut_radius=20):
     """
     Calculate metrics on a stack of PSFs.
 
@@ -72,9 +72,9 @@ def calc_psf_metrics(psf_stack, parallel=False):
         #####
         if parallel:
             results = pool.apply_async(calc_psf_metrics_single,
-                                       (psf, psf_stack.pixel_scale))
+                                       (psf, psf_stack.pixel_scale, cut_radius))
         else:
-            results = calc_psf_metrics_single(psf, psf_stack.pixel_scale)
+            results = calc_psf_metrics_single(psf, psf_stack.pixel_scale, cut_radius)
             
         results_async.append(results)
 

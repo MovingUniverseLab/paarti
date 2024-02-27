@@ -8,7 +8,7 @@ import astropy.units as u
 import astropy
 from paarti.psf_metrics import metrics
 from paarti.utils import keck_utils
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry
+from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
 import glob
 from scipy import stats
 import scipy, scipy.misc, scipy.ndimage
@@ -677,7 +677,97 @@ def print_psf_metrics_open(directory='./', oversamp=3, seed=10):
         print(sout)
 
     psf_all_wvls.close()
+
     return
+
+def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
+    """
+    Print some PSF metrics vs. wavelength and field position for PSFs
+    computed by MAOS. Closed-loop.
+
+    Inputs:
+    ------------
+    directory        : string, default is current directory
+        Directory where MAOS simulation results live
+
+    oversamp         : int, default=3
+
+    seed             : int, default=10
+        Simulation seed (seed value for which MAOS simulation was run)
+
+    Outputs:
+    ------------
+    wavelengths      : array, dtype=float
+        Array of wavelengths for which MAOS simulation was run and for
+        which output metrics were calculated
+
+    strehl_values    : array, dtype=float
+        Array of Strehl values for each wavelength
+
+    fwhm_gaus_values : array, dtype=float
+        Array of FWHM values for Gaussians fit to each MAOS PSF at
+        each wavelength
+
+    fwhm_emp_values  : array, dtype=float
+        Array of empirical FWHM values for each MAOS PSF. Empirical
+        FWHM is calculated by locating the pixel with the largest flux,
+        dividing that flux by 2, finding the nearest pixel with this halved 
+        flux value, and computing the distance between them. This quantity
+        is then converted to micro-arcsec (mas) using the MAOS pixel scale
+        (arcsec/px) from the MAOS PSF header
+
+    r_ee80_values    : array, dtype=float
+        Array of radii for each MAOS PSF. At each wavelength, a radius
+        is computed on the MAOS PSF, within which 80% of the total
+        image flux is contained.
+    """
+    print("Looking in %s for simulation results..." % directory)  
+    fits_files = glob.glob(directory + f'evlpsfcl_{seed}_x*_y*.fits')
+    psf_all_wvls = fits.open(fits_files[0])
+    nwvl = len(psf_all_wvls)
+    npos = len(fits_files)
+
+    psf_all_wvls.close()
+
+    xpos = np.zeros((npos, nwvl), dtype=int)
+    ypos = np.zeros((npos, nwvl), dtype=int)
+    wavelengths = np.zeros((npos, nwvl), dtype=float)
+    strehl_values = np.zeros((npos, nwvl), dtype=float)
+    fwhm_gaus_values = np.zeros((npos, nwvl), dtype=float)
+    fwhm_emp_values = np.zeros((npos, nwvl), dtype=float)
+    r_ee50_values = np.zeros((npos, nwvl), dtype=float)
+    r_ee80_values = np.zeros((npos, nwvl), dtype=float)
+ 
+    for xx in range(npos):
+        psf_all_wvls = fits.open(fits_files[xx])
+
+        file_name = fits_files[xx].split('/')[-1]
+        file_root = file_name.split('.')[0]
+        tmp = file_root.split('_')
+        tmpx = int(tmp[2][1:])
+        tmpy = int(tmp[3][1:])
+        print('xx = ', tmpx, 'yy = ', tmpy)
+
+        for pp in range(nwvl):
+            xpos[xx, pp] = tmpx
+            ypos[xx, pp] = tmpy
+            
+            psf = psf_all_wvls[pp].data
+            hdr = psf_all_wvls[pp].header
+            mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], 
+                                                   oversamp=oversamp)
+            wavelengths[xx, pp] = hdr["WVL"] * 1.0e6
+            strehl_values[xx, pp] = mets["strehl"]
+            fwhm_gaus_values[xx, pp] = mets["emp_fwhm"] * 1.0e3
+            fwhm_emp_values[xx, pp] = mets["fwhm"] * 1.0e3
+            r_ee50_values[xx, pp] = mets["ee50"] * 1.0e3
+            r_ee80_values[xx, pp] = mets["ee80"] * 1.0e3
+
+
+        psf_all_wvls.close()
+        
+    return xpos, ypos, wavelengths, strehl_values, fwhm_gaus_values, fwhm_emp_values, r_ee50_values, r_ee80_values
+
 
 def read_maos_psd(psd_input_file, type='jitter'):
     """
@@ -2489,3 +2579,70 @@ def calc_peak_flux_ratio_on_sky(img, coords, radius, skysub):
     
     return peak_flux_ratio
 
+def get_parameter_from_done_conf(directory, param_name):
+    """
+    Get the parameter value from a maos_done.conf file
+    in the specified directory. This is a convenience function
+    to fetch (or grep) the parameter value that was actually in
+    the run (rather than relying on the input config files
+    which might accidentally change).
+
+    Parameters
+    ----------
+    directory : str
+        Name of the directory (ending with /) where the
+        MAOS output is stored. Routine reads
+        <directory>/maos_done.conf.
+
+    param_name : str
+        Name of the parameter to search for. This should be a
+        full parameter name such as fit.thetax or powfs.rne.
+
+    Returns
+    -------
+    param_value : type is dynamic
+        Return the parameter value as a numpy array,
+        float, int, or string.
+    
+    """
+    import re
+    import sys
+
+    file = open(f'{directory}maos_done.conf', "r")
+
+    for line in file:
+        if re.search(param_name, line):
+            # Pull out just the value side (after =)
+            pval = line.split("=")[1]
+
+            # Figure out if this is an arrayed quantity. If so,
+            # pull out just the stuff between [ and ] and make it an array.
+            if "[" in pval:
+                # Trim [ ]
+                pval = pval.split("[")[1].split("]")[0]
+
+                tmp = pval.split()
+                if tmp[0].isdigit():
+                    param_value = np.fromstring(pval, dtype='int', sep=' ')
+                else:
+                    param_value = np.fromstring(pval, dtype='float', sep=' ')
+            else:
+                # is int?
+                if pval.isdigit():
+                    param_value = int(value)
+                else:
+                    try:
+                        # is float?
+                        param_value = float(value)
+                    except:
+                        # default to string
+                        param_value = pval
+
+            file.close()
+
+            return param_value
+
+    file.close()
+
+    return None
+            
