@@ -7,7 +7,6 @@ from astropy.modeling import models, fitting
 import astropy.units as u
 import astropy
 from paarti.psf_metrics import metrics
-from paarti.utils import keck_utils
 from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
 import glob
 from scipy import stats
@@ -1932,12 +1931,16 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
 
     By Brooke DiGia
     """
+
+    
     base_root = "/u/bdigia/work/ao/keck/maos/keck/my_base/"
     best = []
 
     # Convert on_sky array to numpy array in case user
     # did not input it as such
     on_sky = np.array(on_sky)
+
+    from paarti.utils import keck_utils
 
     for amp in amps:
     	for i in range(on_sky.shape[0]):
