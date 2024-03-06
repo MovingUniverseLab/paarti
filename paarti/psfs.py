@@ -55,7 +55,7 @@ class PSF_stack(object):
 
 
 class MAOS_PSF_stack(PSF_stack):
-    def __init__(self, directory = './', bandpass=0, telescope='KECK1',
+    def __init__(self, directory = './', seed=1, bandpass=0, telescope='KECK1',
                  isgrid=True,
                  LGSpos=np.array([[-7.6,0],[0,7.6],[0,-7.6],[7.6,0]]),
                  NGSpos=np.array([[0,5.6]]) ):
@@ -76,7 +76,7 @@ class MAOS_PSF_stack(PSF_stack):
 
         """
         filelist = os.listdir(directory)
-        fits_files = fnmatch.filter(filelist,'evlpsfcl_1_x*_y*.fits')
+        fits_files = fnmatch.filter(filelist, f'evlpsfcl_{seed}_x*_y*.fits')
         n_psfs = len(fits_files)
         pos = np.empty([n_psfs, 2])
 
@@ -99,8 +99,8 @@ class MAOS_PSF_stack(PSF_stack):
                 first_file = False
 
             psfs[i,:,:] = data
-            pos[i,0] = header['theta'].imag
-            pos[i,1] = header['theta'].real
+            pos[i,0] = header['theta'].real
+            pos[i,1] = header['theta'].imag
 
 
         super().__init__(psfs, pos, pixel_scale, wavelength,
@@ -112,7 +112,7 @@ class MAOS_PSF_stack(PSF_stack):
         
         return
 
-    def calc_metrics(self, parallel=False):
+    def calc_metrics(self, parallel=False, cut_radius=20):
         """
         Calculate metrics on a stack of PSFs.
 
@@ -145,11 +145,114 @@ class MAOS_PSF_stack(PSF_stack):
             'strehl' - Strehl of the PSF, only valid for MAOS-style PSFs.
         """
     
-        mets = metrics.calc_psf_metrics(self, parallel=parallel)
+        mets = metrics.calc_psf_metrics(self, parallel=parallel, cut_radius=cut_radius)
 
         self.metrics = mets
         
         return
+
+class MAOS_PSF_all_bands_stack(PSF_stack):
+    def __init__(self, directory = './', seed=1, telescope='KECK1',
+                 isgrid=True,
+                 LGSpos=np.array([[-7.6,0],[0,7.6],[0,-7.6],[7.6,0]]),
+                 NGSpos=np.array([[0,5.6]]) ):
+        """
+        Load a grid of MAOS simulated PSFs at the specified bandpass index.
+
+        Inputs
+        ------
+        directory : string
+            A directory containing the MAOS output FITS files.
+        LGSpos : numpy array
+            An n by 2 array containing the x,y locations of each LGS
+        NGSpos : numpy array
+            An n by 2 array containing the x,y locations of each NGS
+        
+        Usage
+        -----
+
+        """
+        filelist = os.listdir(directory)
+        fits_files = fnmatch.filter(filelist, f'evlpsfcl_{seed}_x*_y*.fits')
+        n_pos = len(fits_files)
+        first_file = True
+        
+        for i, FITSfilename in enumerate(fits_files):
+            with fits.open(directory + FITSfilename) as psfFITS:
+                if first_file:
+                    n_wvls = len(psfFITS)
+                    
+                    wavelength = np.empty(n_pos*n_wvls, dtype=float)
+                    pos = np.empty([n_pos*n_wvls, 2])
+                    psf_x_size = psfFITS[0].data.shape[1]
+                    psf_y_size = psfFITS[0].data.shape[0]
+                    
+                    psfs = np.empty([n_pos*n_wvls, psf_y_size, psf_x_size])
+                    pixel_scale = psfFITS[0].header['dp']
+                    first_file = False
+
+                for ww in range(n_wvls):
+                    header = psfFITS[ww].header
+                    data = psfFITS[ww].data
+                    # shape is (y,x). Fastest changing axis (x) is printed last
+                    
+                    wavelength[i*n_wvls + ww] = header['wvl']*1E9
+                    
+                    psfs[i*n_wvls + ww, :, :] = data
+                    pos[i*n_wvls + ww, 0] = header['theta'].real
+                    pos[i*n_wvls + ww, 1] = header['theta'].imag
+
+
+        bandpass = 'all'
+        
+        super().__init__(psfs, pos, pixel_scale, wavelength,
+                         bandpass, telescope, isgrid)
+
+        # Other MAOS specific stuff.
+        self.NGSpos = NGSpos
+        self.LGSpos = LGSpos
+        
+        return
+
+    def calc_metrics(self, parallel=False, cut_radius=20):
+        """
+        Calculate metrics on a stack of PSFs.
+
+        Optional Inputs:
+        -------
+        parallel : boolean
+            Set to True for parallel processing. But may not work in
+            Jupyter notebooks. 
+
+        Returns:
+        --------
+        Adds a "metrics" table to the psf_stack object.
+
+        self.metrics : astropy table
+            An astropy table with one row for each PSF. The computed metrics include
+
+            'ee25' - 25% encircled-energy radius in arcsec
+            'ee50' - 50% encircled-energy radius in arcsec
+            'ee80' - 80% encircled-energy radius in arcsec
+            'NEA'  - Noise-equivalent area in arcsec^2 (wrong?)
+            'NEA2' - Noise-equivalent area in arcsec^2 (different calc, right?)
+            'emp_fwhm' - Empirical FWHM in arcsec calculated based on
+                         radius of circle with an area that is equivalent to the
+                         area of all pixels with flux above 0.5 * max flux.
+            'fwhm' - Average FWHM in arcsec from 2D Gaussian fit. 
+            'xfwhm' - X FWHM in arcsec from 2D Gaussian fit. 
+            'yfwhm' - Y FWHM in arcsec from 2D Gaussian fit.
+            'theta' - Angle in degrees to the major axis of the 2D Gaussian.
+            'ellipticity' - Ellipticity of the PSF.
+            'strehl' - Strehl of the PSF, only valid for MAOS-style PSFs.
+        """
+    
+        mets = metrics.calc_psf_metrics(self, parallel=parallel, cut_radius=cut_radius)
+
+        self.metrics = mets
+        
+        return
+    
         
 
 class AIROPA_PSF_stack(PSF_stack):
