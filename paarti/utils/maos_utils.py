@@ -1,3 +1,4 @@
+
 import numpy as np
 import math
 from astropy.table import Table
@@ -1519,7 +1520,7 @@ def remove_keywords(file, *args):
             
     return
 
-def estimate_on_sky_conditions(file, saveto, plot=False):
+def estimate_on_sky_conditions(file, saveto, verbose=False, plot=False):
     """
     Function to take in the path to an on-sky .fits file (containing a PSF)
     and return an estimation of the atmospheric conditions present at the
@@ -1535,33 +1536,50 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
 
     Inputs:
     ------------
-    file             : string
+    file                   : string
         Path to on-sky FITS file
 
-    saveto           : string
+    saveto                 : string
         Path of location to save MASS/DIMM data files
 
-    plot             : boolean, default = False
+    verbose                : boolean, default = False
+        Option to turn on verbose terminal output
+
+    plot                   : boolean, default = False
         Option to plot turbulence profile and save to current working 
         directory
 
     Outputs:
     ------------
-    avg_r0           : float
-        Averaged Fried parameter in meters
+    r0_start               : float
+        Fried parameter closest to exposure start in meters
 
-    full_turb        : array, len=7, dtype=float
+    start_turb             : array, len=7, dtype=float
         Full turbulence profile (ground layer + free atmosphere)
 
-    wind_spd_profile : array, len=7, dtype=float
+    wind_spd_profile       : array, len=7, dtype=float
         Full wind speed profile
 
-    wind_dir_profile : array, len=7, dtype=float
+    wind_dir_profile       : array, len=7, dtype=float
         Full wind direction profile
+
+    closest_dimm_start     : float
+        DIMM ('') closest to exposure start
+
+    mass_profile_start[-1] : float
+        Total MASS seeing ('') closest to exposure start
+
+    time_of_dimm           : string
+        Time when extracted DIMM was measured in HH:MM:SS
+
+    time_of_mass           : string
+        Time when extracted MASS was measured in HH:MM:SS
     
     By Brooke DiGia
     """
-    print("NOTE: Results for MAOS configuration files marked with ***\n")
+    if verbose:
+        print("NOTE: Results for MAOS configuration files marked with ***\n")
+    
     with fits.open(file) as fits_file:
         hdu = fits_file[0]
         psf = hdu.data
@@ -1584,13 +1602,16 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
             try:
                 # Pull and save DIMM file
                 urllib.request.urlretrieve(url, saveto + dimmdat)
-                print(f"{dimmdat} saved to {saveto}")
+                if verbose:
+                    print(f"{dimmdat} saved to {saveto}")
             except Exception as error:
                 print(f"Error while downloading {dimmdat} from {url}:", 
                       type(error).__name__, error)
                 return
         else:
-            print(f"{dimmdat} exists in directory {saveto}, not downloading.")
+            if verbose:
+                print(f"{dimmdat} exists in directory {saveto}, not downloading.")
+            pass
 
         # Reset url
         url = url_root + "masspro/" + masspro
@@ -1598,13 +1619,16 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
             try:
                 # Pull and save MASS file
                 urllib.request.urlretrieve(url, saveto + masspro)
-                print(f"{masspro} saved to {saveto}")
+                if verbose:
+                    print(f"{masspro} saved to {saveto}")
             except Exception:
                 print(f"Error while downloading {masspro} from {url}:", 
                       type(error).__name__, error)
                 return
         else:
-            print(f"{masspro} exists in directory {saveto}, not downloading.")
+            if verbose:
+                print(f"{masspro} exists in directory {saveto}, not downloading.")
+            pass
 
         # Pull CFHT data based on year of observation date
         cfht_url = "http://mkwc.ifa.hawaii.edu/archive/wx/cfht/cfht-wx.%s.dat" % year
@@ -1612,13 +1636,16 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         if not os.path.exists(saveto + cfht):
             try:
                 urllib.request.urlretrieve(cfht_url, saveto + cfht)
-                print(f"{cfht} saved to {saveto}")
+                if verbose:
+                    print(f"{cfht} saved to {saveto}")
             except Exception as error:
                 print(f"Error while downloading {cfht} from {cfht_url}:",
                       type(error).__name__, error)
                 return
         else:
-            print(f"{cfht} exists in directory {saveto}, not downloading.")
+            if verbose:
+                print(f"{cfht} exists in directory {saveto}, not downloading.")
+            pass
 
         # Pull PHTO station data based on year of observation date
         phto_url = f"http://weather.uwyo.edu/cgi-bin/sounding?region=naconf&TYPE=TEXT%3ALIST&YEAR={year}&MONTH={month}&FROM={day}00&TO={day}00&STNM=91285"
@@ -1643,19 +1670,23 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                     with open(saveto + phto_clean, 'w') as f:
                         line = str(lines.text)
                         f.write(line)
-                print(f"{phto} saved to {saveto}")
+                if verbose:
+                    print(f"{phto} saved to {saveto}")
             except Exception as error:
                 print(f"Error while downloading {phto} from {phto_url}:",
                       type(error).__name__, error)
                 return
         else:
-            print(f"{phto} exists in directory {saveto}, not downloading.")
+            if verbose:
+                print(f"{phto} exists in directory {saveto}, not downloading.")
+            pass
 
         # Exposure time on this date, parsed into hour, minute, second (UT)
         expstart = hdr["EXPSTART"]
         expstop = hdr["EXPSTOP"]
-        print("\nDate of observation is  %s (UT)" % date)
-        print("Exposure time is\t%s to %s (UT)\n" % (expstart, expstop))
+        if verbose:
+            print("\nDate of observation is  %s (UT)" % date)
+            print("Exposure time is\t%s to %s (UT)\n" % (expstart, expstop))
         expstart_hr = float(expstart[:2])
         expstart_min = float(expstart[3:5])
         expstart_sec = float(expstart[6:8])
@@ -1812,12 +1843,12 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                          + ":" + str(dimm_hr[i_dimm_stop]) \
                          + ":" + str(dimm_min[i_dimm_stop]) \
                          + ":" + str(dimm_sec[i_dimm_stop])
-        # print("Closest DIMM data to beginning of exposure:\t%0.4f\tat %s" % 
-        #      (closest_dimm_start, dimm_date_start))
-        # print("Closest DIMM data to end of exposure:\t\t%0.4f\tat %s" % 
-        #      (closest_dimm_stop, dimm_date_stop))
-        # print("Average DIMM over exposure:\t\t\t%0.4f\n" % avg_dimm)
-        print(f"Closest DIMM to exposure start = {closest_dimm_start}")
+        if verbose:
+            print("Closest DIMM data to beginning of exposure:\t%0.4f\tat %s" % 
+                  (closest_dimm_start, dimm_date_start))
+            print("Closest DIMM data to end of exposure:\t\t%0.4f\tat %s" % 
+                  (closest_dimm_stop, dimm_date_stop))
+            print("Average DIMM over exposure:\t\t\t%0.4f\n" % avg_dimm)
         
         # Some output formatting
         np.set_printoptions(precision=3)
@@ -1842,10 +1873,11 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                          + ":" + str(mass_hr[i_mass_stop]) \
                          + ":" + str(mass_min[i_mass_stop]) \
                          + ":" + str(mass_sec[i_mass_stop])
-        print("Closest MASS data to beginning of exposure: ", 
-              np.array(mass_profile_start), "at ", mass_date_start)
-        print("Closest MASS data to end of exposure:\t    ", 
-              np.array(mass_profile_stop), "at ", mass_date_stop)
+        if verbose:
+            print("Closest MASS data to beginning of exposure: ", 
+                  np.array(mass_profile_start), "at ", mass_date_start)
+            print("Closest MASS data to end of exposure:\t    ", 
+                  np.array(mass_profile_stop), "at ", mass_date_stop)
 
         cfht_date_start = str(cfht_yr[i_cfht_start]) \
                           + ":" + str(cfht_mon[i_cfht_start]) \
@@ -1867,15 +1899,6 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                                                mass_profile_stop,
                                                date_for_massdimm,
                                                plot)
-        # Average these two turbulence profiles together (we average due to potential
-        # noise involved in the MASS/DIMM measurements)
-        avg_turb = np.average((np.array(start_turb), np.array(end_turb)), axis=0)
-        avg_r0 = (r0_start + r0_end) / 2.0
-        avg_mass_seeing = (mass_profile_start[-1] + mass_profile_stop[-1]) / 2.0
-        # print("\nMASS seeing (arcsec): ", avg_mass_seeing)
-        print(f"MASS closest to exposure start: {mass_profile_start[-1]}")
-        # print("*** Full turbulence profile:\t\t    ", avg_turb)
-        # print("*** Fried parameter (m):\t\t\t%0.6f\n" % avg_r0)
 
         # Average CFHT data across exposure to calculate ground layer wind speed
         # and direction
@@ -1883,13 +1906,12 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
         cfht_wddir_start = cfht_wddir[i_cfht_start]
         cfht_wdspd_stop = cfht_wdspd[i_cfht_stop]
         cfht_wddir_stop = cfht_wddir[i_cfht_stop]
-        print("Closest CFHT data to beginning of exposure: %0.4f (m/s) | %0.4f (deg) at %s" % 
-              (cfht_wdspd_start, cfht_wddir_start, cfht_date_start))
-        print("Closest CFHT data to end of exposure:\t    %0.4f (m/s) | %0.4f (deg) at %s\n" %
-              (cfht_wdspd_stop, cfht_wddir_stop, cfht_date_stop))
+        if verbose:
+            print("Closest CFHT data to beginning of exposure: %0.4f (m/s) | %0.4f (deg) at %s" % 
+                  (cfht_wdspd_start, cfht_wddir_start, cfht_date_start))
+            print("Closest CFHT data to end of exposure:\t    %0.4f (m/s) | %0.4f (deg) at %s\n" %
+                  (cfht_wdspd_stop, cfht_wddir_stop, cfht_date_stop))
 
-        avg_grnd_wdspd = ( cfht_wdspd_start + cfht_wdspd_stop ) / 2.0
-        avg_grnd_wddir = ( cfht_wddir_start + cfht_wddir_stop ) / 2.0
         free_atm_wdspd = phto_wdspd[phto_indices]
         free_atm_wddir = phto_wddir[phto_indices]
         # Use CFHT data at exposure start rather than averaged result over exposure, 02/29/2024 B. DiGia
@@ -1897,16 +1919,19 @@ def estimate_on_sky_conditions(file, saveto, plot=False):
                                                      free_atm_wdspd) )
         wind_dir_profile = np.concatenate( (np.array([cfht_wddir_start]), 
                                                      free_atm_wddir) )
-        print("Free atm wind speed/direction profiles taken at these heights:", 
-              phto_hghts[phto_indices])
-        print("*** Full wind speed profile (m/s): ", wind_spd_profile)
-        print("*** Full wind direction profile (deg): ", wind_dir_profile)
-        print(f"AIRMASS = {hdr['AIRMASS']} --> Zenith angle (deg): {np.degrees(np.arccos(1.0/float(hdr['AIRMASS'])))}")
         
-    # return avg_r0, avg_turb, wind_spd_profile, wind_dir_profile
+        if verbose:
+            print("Free atm wind speed/direction profiles taken at these heights:", 
+                  phto_hghts[phto_indices])
+            print("*** Full wind speed profile (m/s): ", wind_spd_profile)
+            print("*** Full wind direction profile (deg): ", wind_dir_profile)
+            print(f"AIRMASS = {hdr['AIRMASS']} --> Zenith angle (deg): {np.degrees(np.arccos(1.0/float(hdr['AIRMASS'])))}")
+        
     # 02/29/2024, B. DiGia - returning quantities closest to the exposure start rather than averaging over
     # exposure
-    return r0_start, start_turb, wind_spd_profile, wind_dir_profile, closest_dimm_start, mass_profile_start[-1]
+    time_of_dimm = f"{dimm_hr[i_dimm_start]}:{dimm_min[i_dimm_start]}:{dimm_sec[i_dimm_start]}"
+    time_of_mass = f"{mass_hr[i_mass_start]}:{mass_min[i_mass_start]}:{mass_sec[i_mass_start]}"
+    return r0_start, start_turb, wind_spd_profile, wind_dir_profile, closest_dimm_start, mass_profile_start[-1], time_of_dimm, time_of_mass
 
 def maos_windshake_grid(amps, on_sky, thres=0.05):
     """
@@ -2239,127 +2264,6 @@ def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
     plt.savefig(saveto + filename + file_suffix)
     return
 
-def run_int_time_spot_check(end_times, dt=1.0/472.0):
-    """
-    Function to run spot check (informal search) of multiple integration times by varying the
-    number of simulation steps only (i.e. sim.end)
-
-    Inputs:
-    --------
-    end_times : array, variable length, dtype=float
-        MAOS sim.end parameters to run
-
-    dt        : float, default=1.0/472.0
-        MAOS dt parameter
-
-    Outputs:
-    --------
-    None, MAOS simulation information printed to terminal
-
-    By Brooke DiGia
-    """
-    for i in range(len(end_times)):
-       print(f"************** INTEGRATION TIME = {int_time} ***************")
-       folder = f"A_keck_scao_lgs_gc_int_time={int_time}_01302024"
-       maos_cmd = f"""maos -o {folder} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 sim.end={end_times[i]} sim.seeds=[4] -O"""
-       os.system(maos_cmd)
-
-def generate_spreadsheet(files, whereto, on_sky_output, sim_output):
-    """
-    Function to generate spreadsheet (.csv) value of sky and 
-    simulation results.
-
-    Inputs:
-    --------
-    files         : array, variable length, dtype=str
-        Array of absolute paths of on-sky files to include
-        in the spreadsheet, along with their simulation
-        counterparts
-
-    whereto       : string
-        ABSOLUTE path to location where spreadsheet.csv should
-        be saved. Don't forget the trailing slash!
-
-   on_sky_output  : string
-        ABSOLUTE path to location where on-sky output metrics file
-        from calc_strehl_on_sky() should be saved
-
-    sim_output    : string
-        ABSOLUTE path to location where simulation output metrics file
-        from calc_strehl() should be saved
-
-    Outputs:
-    --------
-    None, prints information to terminal and writes to user-specified
-    text files
-
-    By Brooke DiGia
-    """
-    # Lots of data to store
-    frames = []
-    dates = []
-    exposures = []
-    dimms = []
-    masses = []
-    frieds = []
-    grnd_wind_spds = []
-    grnd_wind_dirs = []
-    airmasses = []
-    strehls = []
-    fwhms = []
-    rmswfes = []
-    #sim_strehls = []
-    #sim_fwhms = []
-    #sim_rmswfes = []
-    
-    for i in range(len(files)):
-       print(f"Opening {files[i]} ...\n")
-       with fits.open(files[i]) as fits_file:
-           hdu = fits_file[0]
-           hdr = hdu.header
-
-       fried, turbpro, windspd, winddrct, dimm, mass = estimate_on_sky_conditions(files[i], 
-                                                                                  files[i][:-9])
-       try:
-           strehl, fwhm, rmswfe = calc_strehl_on_sky([files[i]], on_sky_output)
-           strehls.append(strehl[-1])
-           fwhms.append(fwhm[-1])
-           rmswfes.append(rmswfe[-1])
-           # sim_strehls, sim_fwhms, sim_rmswfes = calc_strehl(files[i], sim_output)
-       except Exception as error:
-           print(f"Error calculating Strehl for {files[i]}: {error}")
-           strehl = -1
-           fwhm = -1
-           rmswfe = -1
-     
-       frames.append(files[i][-14:-9])
-       dates.append(hdr['DATE-OBS'])
-       exp = str(hdr['EXPSTART']) + " to " + str(hdr['EXPSTOP'])
-       exposures.append(exp)
-       frieds.append(fried)
-       grnd_wind_dirs.append(winddrct[0])
-       grnd_wind_spds.append(windspd[0])
-       dimms.append(dimm)
-       masses.append(mass)
-       airmasses.append(hdr['AIRMASS'])
-       
-    with open(f'{whereto}spreadsheet.csv', 'w', newline='') as csvfile:
-        fields = ['On-Sky Frames', 'Date (UT)', 'Exposure Time (UT)', 'DIMM ('')', 'MASS ('')', 
-                  'Grnd Wind Speed (m/s)', 'Grnd Wind Direction (deg)', 'Airmass', 
-                  'Sky Obs Strehl', 'Sky Obs FWHM (mas)', 'Sky Obs RMS WFE (nm)']
-        writer = csv.DictWriter(csvfile, fieldnames=fields)
-        writer.writeheader()
-        for i in range(len(frames)):
-            writer.writerow({'On-Sky Frames':frames[i], 'Date (UT)':dates[i], 
-                             'Exposure Time (UT)':exposures[i], 'DIMM':dimms[i], 
-                             'MASS':masses[i], 'Grnd Wind Speed (m/s)':grnd_wind_spds[i], 
-                             'Grnd Wind Direction (deg)':grnd_wind_dirs[i], 
-                             'Airmass':airmasses[i], 'Sky Obs Strehl':strehls[i], 
-                             'Sky Obs FWHM (mas)':fwhms[i], 'Sky Obs RMS WFE (nm)':rmswfes[i]})
-            
-    return
-    #return frames, dates, exposures, frieds, grnd_wind_spds, grnd_wind_dirs, strehls, sim_strehls, fwhms, sim_fwhms, rmswfes, sim_rmswfes
-
 def maos_spreadsheet_lookup(filename, frames=None, dates=None, *args):
     """
     Function to return sky + simulation information in numpy 2D array.
@@ -2445,29 +2349,43 @@ def maos_spreadsheet_lookup(filename, frames=None, dates=None, *args):
     
     return df
 
-def fetch_sky_frames(dates=None):
+def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
     """
     Function to return the on-sky frames and their associated information
     available for an input observing night(s).
 
     Inputs:
     --------
-    dates    : array, 1D variable length, dtype=str
+    dates        : array, 1D variable length, dtype=str
         Dates for which to pull on-sky observing frames. If dates is None, all
         available on-sky frame names are returned
 
+    savecsvto    : string, default=None
+        If savecsvto is None, a csv file is not of the pandas Dataframe is not
+        saved. If savecsvto is entered, it should be the directory in which
+        to save the csv file, named df_as_csv
+
+        Don't forget the trailing slash!
+
+    verbose      : boolean, default=False
+        Option to include verbose output from estimate_on_sky_conditions
+        subroutine
+    
+    seeds        : array, 1D variable length, dtype=int
+        Array of simulation seeds.
+
     Outputs:
     --------
-    df       : pandas Dataframe, dtype=variable
+    df           : pandas Dataframe, dtype=variable
         Pandas Dataframe structure containing the sky frames + info for the 
         nights specified (or all)
-    """
+    """    
     if dates != None:
+        # User wants select sky frames + info
         names = []
         datecol = []
         sky_paths = []
         for date in dates:
-            print(f"Date: {date}")
             name = [f[-14:-9] for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/{date}nirc2_kp/*_psf.fits")]
             paths = [f for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/{date}nirc2_kp/*_psf.fits")]
             names.extend(name)
@@ -2496,12 +2414,33 @@ def fetch_sky_frames(dates=None):
         datecol = np.array(datecol)    
         namesanddates = np.column_stack((names, datecol))
     
-    exposures = []
+    # Initialize data storage
+    expstarts = []
+    expstops = []
+    mjds = np.empty(namesanddates.shape[0])
+    frieds = np.empty(namesanddates.shape[0])
     dimms = np.empty(namesanddates.shape[0])
     masses = np.empty(namesanddates.shape[0])
     spds = np.empty(namesanddates.shape[0])
     drcts = np.empty(namesanddates.shape[0])
     airmasses = np.empty(namesanddates.shape[0])
+    # MASS profile weights taken at the following atm.ht = [0 500 1000 2000 4000 8000 16000]
+    masswts0 = np.empty(namesanddates.shape[0])
+    masswts500 = np.empty(namesanddates.shape[0])
+    masswts1000 = np.empty(namesanddates.shape[0])
+    masswts2000 = np.empty(namesanddates.shape[0])
+    masswts4000 = np.empty(namesanddates.shape[0])
+    masswts8000 = np.empty(namesanddates.shape[0])
+    masswts16000 = np.empty(namesanddates.shape[0])
+    dimmtimes = []
+    masstimes = []
+    tubetemps = np.empty(namesanddates.shape[0])
+    lgsrmswfes = np.empty(namesanddates.shape[0])
+    lbwfsfwhms = np.empty(namesanddates.shape[0])
+    dmgains = np.empty(namesanddates.shape[0])
+    ttgains = np.empty(namesanddates.shape[0])
+    wfsgains = np.empty(namesanddates.shape[0])
+
     for i, sky in enumerate(namesanddates):
         sky_file = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
         sky_folder = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/"
@@ -2512,36 +2451,83 @@ def fetch_sky_frames(dates=None):
         except:
             pass
 
-        # Grab exposure time from sky FITS file header
+        # Grab sky FITS file header
         with fits.open(sky_file) as fits_file:
             hdu = fits_file[0]
             hdr = hdu.header
-            exptime = str(hdr['EXPSTART']) + " to " + str(hdr['EXPSTOP'])
-            airmass = hdr['AIRMASS']
 
-        exposures.append(exptime)
-        airmasses[i] = airmass
+        expstarts.append(hdr['EXPSTART'])
+        expstops.append(hdr['EXPSTOP'])
+        mjds[i] = hdr['MJD-OBS']
+        airmasses[i] = hdr['AIRMASS']
+        tubetemps[i] = hdr['TUBETEMP'] 
+        lgsrmswfes[i] = hdr['LGRMSWF']
+        lbwfsfwhms[i] = hdr['AOLBFWHM']
+        dmgains[i] = hdr['DMGAIN']
+        ttgains[i] = hdr['DTGAIN']
+        wfsgains[i] = hdr['WSSMGN']
  
         # Pull atm/weather info for sky file
-        _, _, windspds, winddrcts, dimm, mass = estimate_on_sky_conditions(sky_file, 
-                                                                           sky_folder)
+        fried, turbpro, windspds, winddrcts, dimm, mass, dimmtime, masstime = estimate_on_sky_conditions(sky_file, sky_folder, verbose)
+        frieds[i] = fried
         dimms[i] = dimm
         masses[i] = mass
+        masswts0[i] = turbpro[0]
+        masswts500[i] = turbpro[1]
+        masswts1000[i] = turbpro[2]
+        masswts2000[i] = turbpro[3]
+        masswts4000[i] = turbpro[4]
+        masswts8000[i] = turbpro[5]
+        masswts16000[i] = turbpro[6]
+        dimmtimes.append(dimmtime)
+        masstimes.append(masstime)
         # Store only ground layer speed and direction quantities
         spds[i] = windspds[0]
         drcts[i] = winddrcts[0]
    
-    # Compute metrics
-    sky_strehls, sky_fwhms, sky_rmswfes = calc_strehl_on_sky(sky_paths, "temp.txt") 
-    out = np.column_stack((namesanddates, exposures, dimms, masses, spds, drcts, sky_strehls, 
-                           sky_fwhms, sky_rmswfes, airmasses))
+    # Compute metrics for on-sky frames
+    sky_strehls, sky_fwhms, sky_rmswfes = calc_strehl_on_sky(sky_paths, "temp.txt")
+    # Compute metrics for existing corresponding MAOS sims
+    maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds = collect_maos_results(seeds, namesanddates)
+    # Run MAOS simulation for any on-sky observation with missing MAOS results
+    missing = np.isnan(maos_strehls)
+    run_maos_comp_to_sky_sim(seeds, namesanddates[missing])
+    # Grab newly-calculated MAOS results
+    maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds = collect_maos_results(seeds, namesanddates)
+
+    out = np.column_stack((namesanddates, mjds, expstarts, expstops, airmasses, frieds, 
+                           dimms, dimmtimes, 
+                           masses, masstimes, masswts0, masswts500, masswts1000, masswts2000, 
+                           masswts4000, masswts8000, masswts16000, 
+                           spds, drcts, tubetemps, dmgains, ttgains, wfsgains,
+                           sky_strehls, maos_strehls, maos_strehl_stds,
+                           sky_fwhms, maos_fwhms, maos_fwhm_stds, lbwfsfwhms, 
+                           sky_rmswfes, maos_rmswfes, maos_rmswfe_stds, lgsrmswfes))
     df = pd.DataFrame(np.array(out)[1:], 
-                      columns=['frames', 'dates', 'exptimes', 'dimm', 'mass', 'windspd', 
-                               'winddir', 'skystrehl', 'skyfwhm', 'skyrmswfe', 'airmass'])
+                      columns=['frames', 'dates', 'mjd', 'expstarts', 'expstops', 'airmasses', 'frieds', 
+                               'dimms', 'dimmtimes', 'masses', 'masstimes', 'masswts0', 'masswts500', 
+                               'masswts1000', 'masswts2000', 'masswts4000', 'masswts8000', 
+                               'masswts16000', 'windspds', 'winddirs', 'temps', 'dmgains', 'ttgains',
+                               'wfsgains', 'skystrehls', 'maosstrehls', 'maos_strehl_stds', 
+                               'skyfwhms', 'maosfwhms', 'maos_fwhm_stds', 'lbwfsfwhms', 'skyrmswfes', 
+                               'maosrmswfes', 'maos_rmswfe_stds', 'lgsrmswfes'])
+    
+    # User wants to save csv file
+    if savecsvto != None:
+        # Column names that are a bit more descriptive than keywords
+        aliases = ['Frame', 'Date (UT)', 'MJD', 'Expstart (UT)', 'Expstop (UT)', 'Airmass', 'Fried (m)', 
+                   'DIMM (\'\')', 'Time of DIMM (HH:MM:SS) (UT)', 'MASS (\'\')', 'Time of MASS (HH:MM:SS) (UT)', 
+                   'MASS wt 0 m', 'MASS wt 500 m', 'MASS wt 1000 m', 'MASS wt 2000 m', 'MASS wt 4000 m', 
+                   'MASS wt 8000 m', 'MASS wt 16000 m', 'Wind spd (m/s)', 'Wind drct (deg)', 'Tube Temp (Celsius)',
+                   'DM Gain', 'TT Gain', 'WFS Gain', 'Sky Strehl', 'MAOS Strehl', 'MAOS Strehl Stddev', 
+                   'Sky FWHM (mas)', 'MAOS FWHM (mas)', 'MAOS FWHM Stddev',
+                   'Telemetry LBWFS Avg FWHM (as)', 'Sky RMS WFE (nm)', 'MAOS RMS WFE (nm)', 'MAOS RMS WFE Stddev',
+                   'Telemetry HO RMS WFE (nm)']
+        df.to_csv(f'{savecsvto}df.csv', index=False, header=aliases)
     
     return df
 
-def run_maos_comp_to_sky_sim(seeds, dates=None):
+def run_maos_comp_to_sky_sim(seeds, framedates):
     """
     Function to run MAOS simulation(s) with config set by a session
     of on-sky observation (e.g. a simulation to compare to a night
@@ -2549,50 +2535,112 @@ def run_maos_comp_to_sky_sim(seeds, dates=None):
 
     Inputs:
     --------
-    dates    : array, 1D variable length, dtype=str
-        Dates for which to run simulations
+    framedates : array, variable rows x 2 columns, dtype=str
+        Array of on-sky frames and their correspponding epochs/dates
+
+    seeds      : array, 1D variable length, dtype=int
+        Simulation seeds - MAOS sims are run for each of these seeds
+        and the results are averaged together for one on-sky frame
+        MAOS counterpart result
 
     Outputs:
     --------
     
     By Brooke DiGia
-    """
-    # Grab sky information for dates specified by user
-    sky_df = fetch_sky_frames(dates)
-
+    """  
     # Loop over the sky frames in the dataframe and run MAOS sim for each
-    for i in range(sky_df.shape[0]):
+    for i, sky in enumerate(framedates):
+        sky_file = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
+        sky_folder = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/"
+        
+        with fits.open(sky_file) as fits_file:
+            hdu = fits_file[0]
+            hdr = hdu.header
+
         # Zenith angle
-        angle = np.degrees(np.arccos(1.0/float(sky_df['airmass'][i])))
-        # Grab atm parameters
-        sky_file = f"/u/bdigia/work/ao/airopa_input/{sky_df['dates'][i]}nirc2_kp/{sky_df['frames'][i]}_psf.fits"
-        sky_folder = f"/u/bdigia/work/ao/airopa_input/{sky_df['dates'][i]}nirc2_kp/"
-        fried, turbpro, windspds, winddrcts, _, _ = estimate_on_sky_conditions(sky_file, 
-                                                                               sky_folder)
+        angle = np.degrees(np.arccos(1.0/float(hdr['AIRMASS'])))
+        # Calculate atm parameters
+        fried, turbpro, windspds, winddrcts, _, _, _, _ = estimate_on_sky_conditions(sky_file, 
+                                                                                     sky_folder)
         for seed in seeds:
             # Must be in MAOS simulation directory to run successfully
             if os.getcwd() != "/u/bdigia/work/ao/keck/maos/keck/my_base/":
                 print("Moving current working directory to MAOS simulation directory...\n")
                 os.chdir("/u/bdigia/work/ao/keck/maos/keck/my_base/")
-            maos_cmd = f"maos -o A_keck_scao_lgs_gc_comp_{sky_df['frames'][i]}_seed_{seed}_epoch{sky_df['dates'][i]} -c A_keck_scao_lgs_gc.conf sim.seeds={seed} sim.zadeg={angle} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} -O"
+
+            maos_cmd = f"maos -o A_keck_scao_lgs_gc_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf sim.seeds={seed} sim.zadeg={angle} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} -O"
             os.system(maos_cmd)
 
-def collect_maos_results(seeds, dates=None):
-    # Grab sky information for dates specified by user
-    sky_df = fetch_sky_frames(dates)
+def collect_maos_results(seeds, framedates):
+    """
+    Function to collect existing MAOS results for input simulation seeds
+    and specified on-sky counterparts and dates. Does not run any new MAOS
+    simulations
 
-    # To store data
-    for i in range(sky_df.shape[0]):
+    Inputs:
+    --------
+    seeds      : array, 1D variable length, dtype=int
+        Array of simulation seeds
+
+    framedates : array, variable rows x 2 columns, dtype=str
+        Array of on-sky frames and their correspponding epochs/dates
+
+    Outputs:
+    --------
+    strehls    : array of tuples, 1D variable length, dtype=(float, float)
+        First entry is Strehl averaged over MAOS results for all simulation
+        seeds. Second entry is standard deviation of these individual Strehl
+        measurements
+    
+    fwhms      : array of tuples, 1D variable length, dtype=(float, float)
+        First entry is FWHM averaged over MAOS results for all simulation
+        seeds. Second entry is standard deviation of these individual FWHM
+        measurements
+
+    rmswfes    : array of tuples, 1D variable length, dtype=(float, float)
+        First entry is RMS WFE averaged over MAOS results for all simulation
+        seeds. Second entry is standard deviation of these individual RMS WFE
+        measurements
+
+    By Brooke DiGia
+    """
+    # To store metrics
+    strehls = []
+    strehl_stds = []
+    fwhms = []
+    fwhm_stds = []
+    rmswfes = []
+    rmswfe_stds = []
+
+    for i in range(framedates.shape[0]):
         strehls_to_avg = []
         fwhms_to_avg = []
         rmswfes_to_avg = []
         for seed in seeds:
-            out_file = f"maos_comp_{sky_df['frames'][i]}_epoch{sky_df['dates'][i]}_seed={seed}_metrics.txt"
-            folder = f"/u/bdigia/work/ao/keck/maos/keck/my_base/A_keck_scao_lgs_gc_comp_{sky_df['frames'][i]}_seed={seed}_epoch{sky_df['dates'][i]}/"
-            maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes = calc_strehl(folder, out_file, sim_seed=seed)
+            out_file = f"maos_comp_{framedates[i][0]}_epoch{framedates[i][1]}_seed{seed}_metrics.txt"
+            folder = f"/u/bdigia/work/ao/keck/maos/keck/my_base/A_keck_scao_lgs_gc_comp_{framedates[i][0]}_seed{seed}_epoch{framedates[i][1]}/"
+            try:
+                maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes = calc_strehl(folder, out_file, sim_seed=seed)
+            except Exception as error:
+                print(error)
+                print(f"--> Sim not yet run for {framedates[i][0]} on {framedates[i][1]}. Using NaN for metrics.")
+                maos_seed_strehls = [np.nan]
+                maos_seed_fwhms = [np.nan]
+                maos_seed_rmswfes = [np.nan]
+            
+            # Store values at 2.12 microns (last values)
             strehls_to_avg.append(maos_seed_strehls[-1])
             fwhms_to_avg.append(maos_seed_fwhms[-1])
             rmswfes_to_avg.append(maos_seed_rmswfes[-1])
+        strehls.append(np.mean(strehls_to_avg))
+        strehl_stds.append(np.std(strehls_to_avg))
+        fwhms.append(np.mean(fwhms_to_avg))
+        fwhm_stds.append(np.std(fwhms_to_avg))
+        rmswfes.append(np.mean(rmswfes_to_avg))
+        rmswfe_stds.append(np.std(rmswfes_to_avg))
+
+    return np.array(strehls), np.array(strehl_stds), np.array(fwhms), np.array(fwhm_stds), np.array(rmswfes), np.array(rmswfe_stds)
+
 """
 The following *_on_sky() functons are copied from the KAI repository, linked
 above in function headers, for use on on-sky PSF images. This is to keep the
