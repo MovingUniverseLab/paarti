@@ -13,6 +13,7 @@ import glob
 from scipy import stats
 import scipy, scipy.misc, scipy.ndimage
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import os
 import pdb
 import urllib
@@ -770,7 +771,6 @@ def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
         
     return xpos, ypos, wavelengths, strehl_values, fwhm_gaus_values, fwhm_emp_values, r_ee50_values, r_ee80_values
 
-
 def read_maos_psd(psd_input_file, type='jitter'):
     """
     Read in a MAOS PSD file and return the frequency and PSD arrays
@@ -882,7 +882,7 @@ def psd_integrate_sqrt(freq, psd):
     total_rms = np.sqrt(total_variance)
     return total_rms
 
-def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
+def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3, verbose=False):
     """
     Modified from KAI by Brooke DiGia
     (https://github.com/Keck-DataReductionPipelines/KAI/tree/dev)
@@ -908,6 +908,9 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
 
     aper_size        : float, default = 0.3 arcsec
         The aperture size over which to calculate the Strehl and FWHM
+
+    verbose          : boolean, default = False
+        Option to turn on verbose output
 
     Outputs:
     ------------
@@ -935,8 +938,7 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
                               fwhm='(mas)'))
 
     # Get the PSF .fits files from the input simulation directory
-    path = sim_dir + f'evlpsfcl_{sim_seed}_x0_y0.fits'
-    print("PATH = ", path)
+    path = f'{sim_dir}evlpsfcl_{sim_seed}_x0_y0.fits'
     fits_files = glob.glob(path)
     psf_all_wvls = fits.open(fits_files[0])
     nwvl = len(psf_all_wvls)
@@ -945,12 +947,14 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
     dl_img_files = glob.glob(sim_dir + 'evlpsfdl.fits')
     dl_all_wvls = fits.open(dl_img_files[0])
 
-    # Loop over the MAOS PSF stack to calculate metrics
-    print("Lambda (micron) | Strehl | RMS WFE (nm) | FWHM (mas)")
-    print("----------------------------------------------------------------")
+    if verbose:
+        print("Lambda (micron) | Strehl | RMS WFE (nm) | FWHM (mas)")
+        print("----------------------------------------------------------------")
+
     strehl_to_return = np.zeros(nwvl)
     fwhm_to_return = np.zeros(nwvl)
     rmswfe_to_return = np.zeros(nwvl)
+    # Loop over the MAOS PSF stack to calculate metrics
     for i in range(nwvl):
         # Pull current PSF and DL image from stack
         psf = psf_all_wvls[i].data
@@ -1003,17 +1007,12 @@ def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3):
 
         _out.write(fmt_dat.format(img=psf_lambda, strehl=strehl, 
                                   rms=rmswfe, fwhm=fwhm))
-        print(fmt_dat.format(img=psf_lambda, strehl=strehl, 
-                             rms=rmswfe, fwhm=fwhm), end="")
-        print(">> PSF peak flux value: %0.6f\n" % psf.max())
-
-        """
-        # For plotting purposes:
-        if psf_lambda == 2.12:
-            plt.figure()
-            plt.imshow(dl_img)
-            plt.savefig("/u/bdigia/work/ao/single_psfs/good_run_psfs/test_maos_dl_plot.pdf")
-        """
+        
+        if verbose:
+            print(fmt_dat.format(img=psf_lambda, strehl=strehl, 
+                                 rms=rmswfe, fwhm=fwhm), 
+                                 end="")
+            print(">> PSF peak flux value: %0.6f\n" % psf.max())
 
     # Close output file
     _out.close()
@@ -1409,27 +1408,27 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
 
     # Strip off MASS seeing
     mass_wts = mass_wts[:-1]
-    c0 = mu0 - np.sum(mass_wts)
-    cls = np.zeros(len(mass_wts) + 1)
+    c0 = abs(mu0 - np.sum(mass_wts))
+    cl = np.zeros(len(mass_wts) + 1)
     if normalize:
         to_normalize = np.insert(mass_wts, [0], c0)
         tot = np.sum(to_normalize)
 
         # Re-normalize turbulence weights with new ground layer entry
-        cls = to_normalize/tot
+        cl = to_normalize/tot
     else:
-        cls = np.insert(mass_wts, [0], c0)
+        cl = np.insert(mass_wts, [0], c0)
 
     if plot:
         hts = np.array([0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
-        plt.plot(hts, cls, "ro")
+        plt.plot(hts, cl, "ro")
         plt.title("Turbulence profile %s" % date)
         plt.ylabel(r"c_{l} coefficients")
         plt.xlabel("Height above telescope (meters)")
         plt.show()
         plt.savefig("turb_profile_%s" % date)
 
-    return r0, cls
+    return r0, cl
 
 def fetch_mass_dimm_cfht_loc(dimm_in_hrs, mass_in_hrs, 
                              cfht_in_hrs, timestamp):
@@ -2491,6 +2490,9 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
     maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds = collect_maos_results(seeds, namesanddates)
     # Run MAOS simulation for any on-sky observation with missing MAOS results
     missing = np.isnan(maos_strehls)
+    if verbose:
+        print("Running the following frame-epoch combination of simulations: ")
+        print(namesanddates[missing])
     run_maos_comp_to_sky_sim(seeds, namesanddates[missing])
     # Grab newly-calculated MAOS results
     maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds = collect_maos_results(seeds, namesanddates)
@@ -2622,8 +2624,7 @@ def collect_maos_results(seeds, framedates):
             try:
                 maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes = calc_strehl(folder, out_file, sim_seed=seed)
             except Exception as error:
-                print(error)
-                print(f"--> Sim not yet run for {framedates[i][0]} on {framedates[i][1]}. Using NaN for metrics.")
+                print(f"Error while calculating metrics for {framedates[i][0]} on {framedates[i][1]}: {error} --> using NaN for metrics")
                 maos_seed_strehls = [np.nan]
                 maos_seed_fwhms = [np.nan]
                 maos_seed_rmswfes = [np.nan]
@@ -2640,6 +2641,115 @@ def collect_maos_results(seeds, framedates):
         rmswfe_stds.append(np.std(rmswfes_to_avg))
 
     return np.array(strehls), np.array(strehl_stds), np.array(fwhms), np.array(fwhm_stds), np.array(rmswfes), np.array(rmswfe_stds)
+
+def sky_plot(xkey, ykey, pf, colorkeys):
+    """
+    Function to plot the pandas Dataframe holding the on-sky database
+    corresponding to pf['xkey'] and pf['ykey']
+
+    Inputs:
+    --------
+    xkey : string
+        Data to plot on the x-axis, pf['xkey']
+
+    ykey : string
+        Data to plot on the y-axis, pf['ykey']
+
+    pf   : pandas Dataframe
+        Dataframe from which to pull data to plot
+
+    colorkeys : dictionary, size corresponding to length of unique pf['dates']
+        Color-coding between night of obs and named matplotlib color
+
+    Outputs:
+    --------
+    Plots 
+
+    By Brooke DiGia
+    """
+    # Ensure float datatypes prior to plotting
+    pf[xkey] = pd.to_numeric(pf[xkey])
+    pf[ykey] = pd.to_numeric(pf[ykey])
+
+    # Scatter plot, color-coded by night of observation ('dates')
+    color_list = [colorkeys[key] for key in pf['dates']]
+    plot = pf.plot.scatter(x=xkey, y=ykey, c=color_list, grid=True)
+
+    # Legend information
+    handles = []
+    for key in colorkeys:
+        patch = mpatches.Patch(color=colorkeys[key], label=key)
+        handles.append(patch)
+    
+    plot.legend(handles=handles, ncol=2, loc='best', fontsize=10)
+    plot.set_title(f'{ykey} as a function of {xkey}', fontsize=10)
+    plot.set_xlabel(f'{xkey}', fontsize=8)
+    plot.set_ylabel(f'{ykey}', fontsize=8)
+
+def get_parameter_from_done_conf(directory, param_name):
+    """
+    Get the parameter value from a maos_done.conf file
+    in the specified directory. This is a convenience function
+    to fetch (or grep) the parameter value that was actually in
+    the run (rather than relying on the input config files
+    which might accidentally change).
+
+    Parameters
+    ----------
+    directory : str
+        Name of the directory (ending with /) where the
+        MAOS output is stored. Routine reads
+        <directory>/maos_done.conf.
+
+    param_name : str
+        Name of the parameter to search for. This should be a
+        full parameter name such as fit.thetax or powfs.rne.
+
+    Returns
+    -------
+    param_value : type is dynamic
+        Return the parameter value as a numpy array,
+        float, int, or string.
+    
+    """
+    import re
+    import sys
+
+    file = open(f'{directory}maos_done.conf', "r")
+
+    for line in file:
+        if re.search(param_name, line):
+            # Pull out just the value side (after =)
+            pval = line.split("=")[1]
+
+            # Figure out if this is an arrayed quantity. If so,
+            # pull out just the stuff between [ and ] and make it an array.
+            if "[" in pval:
+                # Trim [ ]
+                pval = pval.split("[")[1].split("]")[0]
+
+                tmp = pval.split()
+                if tmp[0].isdigit():
+                    param_value = np.fromstring(pval, dtype='int', sep=' ')
+                else:
+                    param_value = np.fromstring(pval, dtype='float', sep=' ')
+            else:
+                # is int?
+                if pval.isdigit():
+                    param_value = int(value)
+                else:
+                    try:
+                        # is float?
+                        param_value = float(value)
+                    except:
+                        # default to string
+                        param_value = pval
+
+            file.close()
+            return param_value
+
+    file.close()
+    return None
 
 """
 The following *_on_sky() functons are copied from the KAI repository, linked
@@ -2886,71 +2996,3 @@ def calc_peak_flux_ratio_on_sky(img, coords, radius, skysub):
     peak_flux_ratio = peak_flux / aper_sum
     
     return peak_flux_ratio
-
-def get_parameter_from_done_conf(directory, param_name):
-    """
-    Get the parameter value from a maos_done.conf file
-    in the specified directory. This is a convenience function
-    to fetch (or grep) the parameter value that was actually in
-    the run (rather than relying on the input config files
-    which might accidentally change).
-
-    Parameters
-    ----------
-    directory : str
-        Name of the directory (ending with /) where the
-        MAOS output is stored. Routine reads
-        <directory>/maos_done.conf.
-
-    param_name : str
-        Name of the parameter to search for. This should be a
-        full parameter name such as fit.thetax or powfs.rne.
-
-    Returns
-    -------
-    param_value : type is dynamic
-        Return the parameter value as a numpy array,
-        float, int, or string.
-    
-    """
-    import re
-    import sys
-
-    file = open(f'{directory}maos_done.conf', "r")
-
-    for line in file:
-        if re.search(param_name, line):
-            # Pull out just the value side (after =)
-            pval = line.split("=")[1]
-
-            # Figure out if this is an arrayed quantity. If so,
-            # pull out just the stuff between [ and ] and make it an array.
-            if "[" in pval:
-                # Trim [ ]
-                pval = pval.split("[")[1].split("]")[0]
-
-                tmp = pval.split()
-                if tmp[0].isdigit():
-                    param_value = np.fromstring(pval, dtype='int', sep=' ')
-                else:
-                    param_value = np.fromstring(pval, dtype='float', sep=' ')
-            else:
-                # is int?
-                if pval.isdigit():
-                    param_value = int(value)
-                else:
-                    try:
-                        # is float?
-                        param_value = float(value)
-                    except:
-                        # default to string
-                        param_value = pval
-
-            file.close()
-
-            return param_value
-
-    file.close()
-
-    return None
-            
