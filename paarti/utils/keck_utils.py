@@ -26,7 +26,7 @@ def make_keck_vib_psd(jitter_tot=1.0):
         
     Outputs:
     ----------
-    psd_outfoot + '.fits' : string
+    psd_outroot + '.fits' : string
 	Filename of generated PSD
 
     Modified by Brooke DiGia

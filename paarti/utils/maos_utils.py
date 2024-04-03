@@ -23,6 +23,7 @@ import csv
 from kai import instruments
 from bs4 import BeautifulSoup
 import readbin # from MAOS
+from pathlib import Path
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
 MinMag  MaxMag  Integ   Gain	SFW 	Sky
@@ -795,8 +796,6 @@ def read_maos_psd(psd_input_file, type='jitter'):
     psd            : array, dtype=float
         PSD array with units attached
     """
-    import readbin
-    
     if psd_input_file.endswith('fits'):
         psd_in = fits.getdata(psd_input_file)
     else:
@@ -882,7 +881,7 @@ def psd_integrate_sqrt(freq, psd):
     total_rms = np.sqrt(total_variance)
     return total_rms
 
-def calc_strehl(sim_dir, out_file, skysub=False, sim_seed=1, apersize=0.3, verbose=False):
+def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, verbose:bool=False):
     """
     Modified from KAI by Brooke DiGia
     (https://github.com/Keck-DataReductionPipelines/KAI/tree/dev)
@@ -1115,7 +1114,7 @@ def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
 
     return strehl, fwhm, rms_wfe
 
-def calc_peak_flux_ratio(sim_dir, img, coords, radius, wavelength, skysub):
+def calc_peak_flux_ratio(sim_dir, img, coords, radius, wavelength, skysub:bool):
     """
     Modified from KAI by Brooke DiGia for use on MAOS-generated PSFs.
     Function to calculate the ratio of peak flux in the input PSF image
@@ -1482,7 +1481,7 @@ def fetch_mass_dimm_cfht_loc(dimm_in_hrs, mass_in_hrs,
 
     return dimm_closest_idx, mass_closest_idx, cfht_closest_idx
 
-def remove_keywords(file, *args):
+def remove_keywords(file, *args, verbose:bool=False):
     """
     Function to remove XSTREHL and YSTREHL keywords from input FITS 
     file headers. E.g. to remove these keywords from the on-sky 
@@ -1496,8 +1495,11 @@ def remove_keywords(file, *args):
     file       : string
         Path to FITS file to be edited
 
-    *args : string(s)
+    *args      : string(s)
         Keyword(s) to be removed from input FITS file header
+
+    verbose    : boolean, default = False
+        Option to turn on verbose output
 
     Outputs:
     -----------
@@ -1511,7 +1513,8 @@ def remove_keywords(file, *args):
 
         # Remove all input keywords
         for word in args:
-            print("Removing keyword '%s' from %s..." % (word, file))
+            if verbose:
+                print("Removing keyword '%s' from %s..." % (word, file))
             del hdu.header[word]
 
         # Overwrite original input file with desired changes
@@ -1519,7 +1522,7 @@ def remove_keywords(file, *args):
             
     return
 
-def estimate_on_sky_conditions(file, saveto, verbose=False, plot=False):
+def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False):
     """
     Function to take in the path to an on-sky .fits file (containing a PSF)
     and return an estimation of the atmospheric conditions present at the
@@ -2022,7 +2025,7 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
     print(best)
     return best
 
-def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
+def maos_phase_screen_grid(r0s, l0s, on_sky, base_root:Path, thres=0.05):
     """
     Function to test multiple NCPA r0 and l0 parameter values, in comparison
     to an on-sky Strehl quantity (currently hard-coded below). The best 
@@ -2044,6 +2047,9 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
         ['c0103', '/u/bdigia/work/ao/single_psfs/good_run_psfs/', 0.303,
          53.49, 369.5]
 
+    baseroot     : Path
+       Path object for directory from which MAOS sims are run (e.g. MAOS /base/)
+
     thres  : float, default = 0.05
         Threshold for determining if a phase screen is "best" for output
 
@@ -2058,7 +2064,6 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, thres=0.05):
 
     By Brooke DiGia
     """
-    base_root = "/u/bdigia/work/ao/keck/maos/keck/my_base/"
     best = []
 
     # Convert on_sky array to numpy array in case user
@@ -2348,13 +2353,23 @@ def maos_spreadsheet_lookup(filename, frames=None, dates=None, *args):
     
     return df
 
-def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
+def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=None, savecsvto:Path=None, verbose:bool=False):
     """
     Function to return the on-sky frames and their associated information
     available for an input observing night(s).
 
     Inputs:
     --------
+    seeds        : array, 1D variable length, dtype=int
+        Array of simulation seeds
+
+    skyroot      : Path
+        Path object for directory where dated observation sub-directories (e.g. epochs)
+        are stored
+    
+    baseroot     : Path
+       Path object for directory from which MAOS sims are run (e.g. MAOS /base/)
+
     dates        : array, 1D variable length, dtype=str
         Dates for which to pull on-sky observing frames. If dates is None, all
         available on-sky frame names are returned
@@ -2368,25 +2383,37 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
 
     verbose      : boolean, default=False
         Option to include verbose output from estimate_on_sky_conditions
-        subroutine
-    
-    seeds        : array, 1D variable length, dtype=int
-        Array of simulation seeds.
+        subroutine    
+
+    simtypes     : variable, dtype=str
+        Types of MAOS simulations to run, one of the following:
+            - 'piston'          : 1 MAOS sim includes just piston map in NCPA parameter surf = [...]
+                                  2 NCPA surf seen by wave-front sensor (SURFEVL = 1, SURFWFS = 1)
+                                  3 PSD parameter empty (no windshake-jitter power spectral density 
+                                    FITS input)
+            - 'psd+ncpa-seen'   : 1 surf includes piston map and Kolmogorov turbulence
+                                    phase screen
+                                  2 PSD file included
+                                  3 NCPA surf seen by wave-front sensor (SURFEVL = 1, SURFWFS = 1)
+            - 'psd+ncpa-unseen' : 1 surf includes piston map and Kolmogorov turbulence phase 
+                                    screen
+                                  2 PSD file included
+                                  3 NCPA surf NOT seen by wave-front sensor (SURFWFS = 0)
 
     Outputs:
     --------
     df           : pandas Dataframe, dtype=variable
         Pandas Dataframe structure containing the sky frames + info for the 
         nights specified (or all)
-    """    
+    """  
     if dates != None:
         # User wants select sky frames + info
         names = []
         datecol = []
         sky_paths = []
         for date in dates:
-            name = [f[-14:-9] for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/{date}nirc2_kp/*_psf.fits")]
-            paths = [f for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/{date}nirc2_kp/*_psf.fits")]
+            name = [f.as_posix()[-14:-9] for f in skyroot.glob(f"{date}nirc2_kp/*_psf.fits")]
+            paths = [f.as_posix() for f in skyroot.glob(f"{date}nirc2_kp/*_psf.fits")]
             names.extend(name)
             temp = np.full(len(name), date)
             datecol.extend(temp.tolist())
@@ -2397,13 +2424,13 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
         namesanddates = np.column_stack((names, datecol))
     else:
         # User wants all on-sky frames
-        dates = [f[-17:-9] for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/*/")]
+        dates = [f.as_posix()[-16:-8] for f in skyroot.glob("*/")]
         names = []
         datecol = []
         sky_paths = []
         for date in dates:
-            name = [f[-14:-9] for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/{date}nirc2_kp/*_psf.fits")]
-            paths = [f for f in glob.glob(f"/u/bdigia/work/ao/airopa_input/{date}nirc2_kp/*_psf.fits")]
+            name = [f.as_posix()[-14:-9] for f in skyroot.glob(f"{date}nirc2_kp/*_psf.fits")]
+            paths = [f.as_posix() for f in skyroot.glob(f"{date}nirc2_kp/*_psf.fits")]
             names.extend(name)
             temp = np.full(len(name), date)
             datecol.extend(temp.tolist())
@@ -2441,8 +2468,8 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
     wfsgains = np.empty(namesanddates.shape[0])
 
     for i, sky in enumerate(namesanddates):
-        sky_file = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
-        sky_folder = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/"
+        sky_file = skyroot.as_posix() + f"/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
+        sky_folder = skyroot.as_posix() + f"/{sky[1]}nirc2_kp/"
        
         # Remove Strehl coordinate keywords if present
         try:
@@ -2487,15 +2514,24 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
     # Compute metrics for on-sky frames
     sky_strehls, sky_fwhms, sky_rmswfes = calc_strehl_on_sky(sky_paths, "temp.txt")
     # Compute metrics for existing corresponding MAOS sims
-    maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds = collect_maos_results(seeds, namesanddates)
-    # Run MAOS simulation for any on-sky observation with missing MAOS results
+    maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds, tot_maos_wfes, ho_maos_wfes, tt_maos_wfes = collect_maos_results(seeds, 
+                                                                                                                                                                 namesanddates,
+                                                                                                                                                                 baseroot)
+    # Run missing MAOS depending on which type of simulation
     missing = np.isnan(maos_strehls)
     if verbose:
-        print("Running the following frame-epoch combination of simulations: ")
+        print(f"Running the following frame-epoch combination of simulations, total of {len(missing)}: ")
         print(namesanddates[missing])
-    run_maos_comp_to_sky_sim(seeds, namesanddates[missing])
+    
+    for type in simtypes:
+        if verbose:
+            print(f"Running {type} MAOS simulations")
+        run_maos_comp_to_sky_sim(seeds, skyroot, namesanddates[missing], type, baseroot)
+    
     # Grab newly-calculated MAOS results
-    maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds = collect_maos_results(seeds, namesanddates)
+    maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds, tot_maos_wfes, ho_maos_wfes, tt_maos_wfes = collect_maos_results(seeds, 
+                                                                                                                                                                 namesanddates,
+                                                                                                                                                                 baseroot)
 
     out = np.column_stack((namesanddates, mjds, expstarts, expstops, airmasses, frieds, 
                            dimms, dimmtimes, 
@@ -2504,7 +2540,8 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
                            spds, drcts, tubetemps, dmgains, ttgains, wfsgains,
                            sky_strehls, maos_strehls, maos_strehl_stds,
                            sky_fwhms, maos_fwhms, maos_fwhm_stds, lbwfsfwhms, 
-                           sky_rmswfes, maos_rmswfes, maos_rmswfe_stds, lgsrmswfes))
+                           sky_rmswfes, maos_rmswfes, maos_rmswfe_stds, lgsrmswfes,
+                           tot_maos_wfes, ho_maos_wfes, tt_maos_wfes))
     df = pd.DataFrame(np.array(out)[1:], 
                       columns=['frames', 'dates', 'mjd', 'expstarts', 'expstops', 'airmasses', 'frieds', 
                                'dimms', 'dimmtimes', 'masses', 'masstimes', 'masswts0', 'masswts500', 
@@ -2512,7 +2549,8 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
                                'masswts16000', 'windspds', 'winddirs', 'temps', 'dmgains', 'ttgains',
                                'wfsgains', 'skystrehls', 'maosstrehls', 'maos_strehl_stds', 
                                'skyfwhms', 'maosfwhms', 'maos_fwhm_stds', 'lbwfsfwhms', 'skyrmswfes', 
-                               'maosrmswfes', 'maos_rmswfe_stds', 'lgsrmswfes'])
+                               'maosrmswfes', 'maos_rmswfe_stds', 'lgsrmswfes', 
+                               'totmaoswfe', 'homaoswfe', 'ttmaoswfe'])
     
     # User wants to save csv file
     if savecsvto != None:
@@ -2524,12 +2562,13 @@ def fetch_sky_frames(seeds, dates=None, savecsvto=None, verbose=False):
                    'DM Gain', 'TT Gain', 'WFS Gain', 'Sky Strehl', 'MAOS Strehl', 'MAOS Strehl Stddev', 
                    'Sky FWHM (mas)', 'MAOS FWHM (mas)', 'MAOS FWHM Stddev',
                    'Telemetry LBWFS Avg FWHM (as)', 'Sky RMS WFE (nm)', 'MAOS RMS WFE (nm)', 'MAOS RMS WFE Stddev',
-                   'Telemetry HO RMS WFE (nm)']
-        df.to_csv(f'{savecsvto}df.csv', index=False, header=aliases)
+                   'Telemetry HO RMS WFE (nm)', 
+                   'MAOS-computed Total WFE (nm)', 'MAOS-computed HO WFE (nm)', 'MAOS-computed TT WFE (nm)']
+        df.to_csv(savecsvto, index=False, header=aliases)
     
     return df
 
-def run_maos_comp_to_sky_sim(seeds, framedates):
+def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, baseroot:Path):
     """
     Function to run MAOS simulation(s) with config set by a session
     of on-sky observation (e.g. a simulation to compare to a night
@@ -2537,13 +2576,23 @@ def run_maos_comp_to_sky_sim(seeds, framedates):
 
     Inputs:
     --------
-    framedates : array, variable rows x 2 columns, dtype=str
+    framedates   : array, variable rows x 2 columns, dtype=str
         Array of on-sky frames and their correspponding epochs/dates
 
-    seeds      : array, 1D variable length, dtype=int
+    seeds        : array, 1D variable length, dtype=int
         Simulation seeds - MAOS sims are run for each of these seeds
         and the results are averaged together for one on-sky frame
         MAOS counterpart result
+
+    skyroot      : Path
+        Path object for directory where dated observation sub-directories (e.g. epochs)
+        are stored
+
+    simtype      : string
+       Type of simulation to run (see fetch_sky_frames header for info)
+
+    baseroot     : Path
+       Path object for directory from which MAOS sims are run (e.g. MAOS /base/)
 
     Outputs:
     --------
@@ -2552,8 +2601,8 @@ def run_maos_comp_to_sky_sim(seeds, framedates):
     """  
     # Loop over the sky frames in the dataframe and run MAOS sim for each
     for i, sky in enumerate(framedates):
-        sky_file = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
-        sky_folder = f"/u/bdigia/work/ao/airopa_input/{sky[1]}nirc2_kp/"
+        sky_file = skyroot.as_posix() + f"/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
+        sky_folder = skyroot.as_posix() + f"/{sky[1]}nirc2_kp/"
         
         with fits.open(sky_file) as fits_file:
             hdu = fits_file[0]
@@ -2564,16 +2613,34 @@ def run_maos_comp_to_sky_sim(seeds, framedates):
         # Calculate atm parameters
         fried, turbpro, windspds, winddrcts, _, _, _, _ = estimate_on_sky_conditions(sky_file, 
                                                                                      sky_folder)
+        
+        mode = ''
+        if simtype == 'piston':
+            mode = 'piston'
+            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits"]
+            # Fetch name of current input PSD FITS file in MAOS config file keck_sim.conf
+            psd_file = ''
+        elif simtype == 'psd+ncpa-seen':
+            mode = 'surf_wfs1'
+            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.36;l0=3.39;ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"]
+            psd_file = "PSD_Keck_ws26.47mas_vib26mas_rad2.fits"
+        elif simtype == 'psd+ncpa-unseen':
+            mode = 'surf_wfs0'
+            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.36;l0=3.39;ht=40000;slope=-2; SURFWFS=0; SURFEVL=1; seed=10;'"]
+            psd_file = "PSD_Keck_ws26.47mas_vib26mas_rad2.fits"
+        else:
+            raise ValueError(f"Invalid MAOS simulation type '{type}'. Valid types are currently: 'piston', 'psd+ncpa-seen', 'psd+ncpa-unseen'. See help() for further info")
+
         for seed in seeds:
             # Must be in MAOS simulation directory to run successfully
-            if os.getcwd() != "/u/bdigia/work/ao/keck/maos/keck/my_base/":
+            if os.getcwd() != baseroot.as_posix():
                 print("Moving current working directory to MAOS simulation directory...\n")
-                os.chdir("/u/bdigia/work/ao/keck/maos/keck/my_base/")
+                os.chdir(baseroot)
 
-            maos_cmd = f"maos -o A_keck_scao_lgs_gc_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf sim.seeds={seed} sim.zadeg={angle} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} -O"
+            maos_cmd = f"maos -o A_keck_scao_lgs_gc_{mode}_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf sim.seeds={seed} sim.zadeg={angle} sim.wspsd={psd_file} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} surf={surf_cmd} -O"
             os.system(maos_cmd)
 
-def collect_maos_results(seeds, framedates):
+def collect_maos_results(seeds, framedates, baseroot:Path):
     """
     Function to collect existing MAOS results for input simulation seeds
     and specified on-sky counterparts and dates. Does not run any new MAOS
@@ -2586,6 +2653,9 @@ def collect_maos_results(seeds, framedates):
 
     framedates : array, variable rows x 2 columns, dtype=str
         Array of on-sky frames and their correspponding epochs/dates
+
+    baseroot     : Path
+       Path object for directory from which MAOS sims are run (e.g. MAOS /base/)
 
     Outputs:
     --------
@@ -2613,34 +2683,53 @@ def collect_maos_results(seeds, framedates):
     fwhm_stds = []
     rmswfes = []
     rmswfe_stds = []
+    tot_maos_wfes = []
+    ho_maos_wfes = []
+    tt_maos_wfes = []
 
     for i in range(framedates.shape[0]):
         strehls_to_avg = []
         fwhms_to_avg = []
         rmswfes_to_avg = []
+        tot_maos_to_avg = []
+        ho_maos_to_avg = []
+        tt_maos_to_avg = []
         for seed in seeds:
             out_file = f"maos_comp_{framedates[i][0]}_epoch{framedates[i][1]}_seed{seed}_metrics.txt"
-            folder = f"/u/bdigia/work/ao/keck/maos/keck/my_base/A_keck_scao_lgs_gc_comp_{framedates[i][0]}_seed{seed}_epoch{framedates[i][1]}/"
+            folder = baseroot.as_posix() + f"/A_keck_scao_lgs_gc_comp_{framedates[i][0]}_seed{seed}_epoch{framedates[i][1]}/"
             try:
                 maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes = calc_strehl(folder, out_file, sim_seed=seed)
+                _, maos_cl_metrics, _, _ = print_wfe_metrics(directory=folder, seed=seed)
+                tot_maos_err = maos_cl_metrics[0]
+                tt_maos_err = maos_cl_metrics[1]
+                ho_maos_err = maos_cl_metrics[2]
             except Exception as error:
                 print(f"Error while calculating metrics for {framedates[i][0]} on {framedates[i][1]}: {error} --> using NaN for metrics")
                 maos_seed_strehls = [np.nan]
                 maos_seed_fwhms = [np.nan]
                 maos_seed_rmswfes = [np.nan]
+                tot_maos_err = np.nan
+                tt_maos_err = np.nan
+                ho_maos_err = np.nan
             
             # Store values at 2.12 microns (last values)
             strehls_to_avg.append(maos_seed_strehls[-1])
             fwhms_to_avg.append(maos_seed_fwhms[-1])
             rmswfes_to_avg.append(maos_seed_rmswfes[-1])
+            tot_maos_to_avg.append(tot_maos_err)
+            ho_maos_to_avg.append(ho_maos_err)
+            tt_maos_to_avg.append(tt_maos_err)
         strehls.append(np.mean(strehls_to_avg))
         strehl_stds.append(np.std(strehls_to_avg))
         fwhms.append(np.mean(fwhms_to_avg))
         fwhm_stds.append(np.std(fwhms_to_avg))
         rmswfes.append(np.mean(rmswfes_to_avg))
         rmswfe_stds.append(np.std(rmswfes_to_avg))
+        tot_maos_wfes.append(np.mean(tot_maos_to_avg))
+        ho_maos_wfes.append(np.mean(ho_maos_to_avg))
+        tt_maos_wfes.append(np.mean(tt_maos_to_avg))
 
-    return np.array(strehls), np.array(strehl_stds), np.array(fwhms), np.array(fwhm_stds), np.array(rmswfes), np.array(rmswfe_stds)
+    return np.array(strehls), np.array(strehl_stds), np.array(fwhms), np.array(fwhm_stds), np.array(rmswfes), np.array(rmswfe_stds), tot_maos_wfes, ho_maos_wfes, tt_maos_wfes
 
 def sky_plot(xkey, ykey, pf, colorkeys):
     """
