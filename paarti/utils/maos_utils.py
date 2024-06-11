@@ -24,6 +24,7 @@ from kai import instruments
 from bs4 import BeautifulSoup
 import readbin # from MAOS
 from pathlib import Path
+from scipy.io import readsav
 
 strap_rmag_tab = """# File: strap_rmag.dat\n
 MinMag  MaxMag  Integ   Gain	SFW 	Sky
@@ -1315,28 +1316,36 @@ def stddev_to_fwhm(stddev):
     fwhm = 2.0 * math.sqrt( 2.0 * math.log(2.0) ) * stddev
     return fwhm 
 
-def fried(DIMM, wvl=500):
+def fried(DIMM, w_mass, airmass, wvl=500):
     """
     Function to calculate the Fried parameter r0z given the total seeing
     in arcseconds.
 
     Inputs:
     ------------
-    DIMM : float
+    DIMM    : float
         DIMM seeing, arcsec 
     
-    wvl  : float
-        Wavelength in nm, default is 500 nm
+    w_mass  : 1D array, len(6), dtype = float
+        Array of MASS weights
+
+    airmass : float
+        Airmass (sec(observation angle))
+
+    wvl     : float, default = 500 nm
+        Wavelength in nm
 
     Outputs:
     ------------
-    r0z  : float
+    r0z     : float
         The Fried parameter, r0z, in meters
 
     By Brooke DiGia
     """ 
-    r0z = 0.98 * ( wvl*1e-9 / arcsec_to_rad(DIMM) )
-    return r0z
+    r0z1 = 0.98 * ( wvl*1e-9 / arcsec_to_rad(DIMM) )
+    r0z2 = ( 0.423 * ( ( 2.0 * np.pi ) / wvl)**2 * airmass * np.sum(w_mass) )**(-3.0/5.0)
+    print(f"r0z from DIMM = {r0z1} | r0z from MASS discrete integral = {r0z2}")
+    return r0z1
 
 def arcsec_to_rad(x):
     """
@@ -1356,7 +1365,7 @@ def arcsec_to_rad(x):
     """
     return x * (1.0/3600.0) * (math.pi/180.0)
 
-def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500, 
+def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500, 
                         normalize=True):
     """
     Based on equations 16-19 in KAON496:
@@ -1375,7 +1384,7 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
         c_l weights from MASS data file. Response from 
         Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
         as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
-        last element of this array is the MASS seeing (not a weight),
+        last element of this array is the total MASS seeing (not a weight),
         so it is not used in the calculation
 
     date      : string
@@ -1384,6 +1393,9 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
     plot      : boolean
         Option to plot turbulence profile after calculation and save to
         current working directory
+
+    airmass : float
+        Airmass (sec(observation angle))
 
     wvl       : float, default = 500 nm
         Wavelength involved in calculation
@@ -1401,12 +1413,12 @@ def estimate_turbulence(dimm, mass_wts, date, plot, wvl=500,
 
     By Brooke DiGia
     """
-    # Calculate 0th order turbulence moment
-    r0 = fried(dimm, wvl)
+    # Strip off MASS total seeing
+    mass_wts = mass_wts[:-1]
+    # Calculate Fried parameter and 0th order turbulence moment
+    r0 = fried(dimm, mass_wts, airmass, wvl)
     mu0 = 0.06 * ( wvl*1e-9 )**2.0 * r0**(-5.0/3.0)
 
-    # Strip off MASS seeing
-    mass_wts = mass_wts[:-1]
     c0 = abs(mu0 - np.sum(mass_wts))
     cl = np.zeros(len(mass_wts) + 1)
     if normalize:
@@ -1896,10 +1908,12 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
         r0_start, start_turb = estimate_turbulence(closest_dimm_start, 
                                                    mass_profile_start,
                                                    date_for_massdimm, 
+                                                   hdr['AIRMASS'],
                                                    plot)
         r0_end, end_turb = estimate_turbulence(closest_dimm_stop, 
                                                mass_profile_stop,
-                                               date_for_massdimm,
+                                               date_for_massdimm, 
+                                               hdr['AIRMASS'],
                                                plot)
 
         # Average CFHT data across exposure to calculate ground layer wind speed
@@ -1922,6 +1936,14 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
         wind_dir_profile = np.concatenate( (np.array([cfht_wddir_start]), 
                                                      free_atm_wddir) )
         
+        # Calculate atmospheric coherence time tau_0 (s)
+        tau_0 = tau0(closest_dimm_start, mass_profile_start[:-1], wind_spd_profile, 
+                     hdr['AIRMASS'])
+
+        # Calculate isoplanatic angle theta0
+        theta_0 = theta0(closest_dimm_start, mass_profile_start[:-1], hdr['AIRMASS'], 
+                         np.degrees(np.arccos(1.0/float(hdr['AIRMASS']))))
+        
         if verbose:
             print("Free atm wind speed/direction profiles taken at these heights:", 
                   phto_hghts[phto_indices])
@@ -1933,7 +1955,7 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
     # exposure
     time_of_dimm = f"{dimm_hr[i_dimm_start]}:{dimm_min[i_dimm_start]}:{dimm_sec[i_dimm_start]}"
     time_of_mass = f"{mass_hr[i_mass_start]}:{mass_min[i_mass_start]}:{mass_sec[i_mass_start]}"
-    return r0_start, start_turb, wind_spd_profile, wind_dir_profile, closest_dimm_start, mass_profile_start[-1], time_of_dimm, time_of_mass
+    return r0_start, start_turb, wind_spd_profile, wind_dir_profile, closest_dimm_start, mass_profile_start[-1], time_of_dimm, time_of_mass, tau_0, theta_0
 
 def maos_windshake_grid(amps, on_sky, thres=0.05):
     """
@@ -1980,8 +2002,8 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
     for amp in amps:
     	for i in range(on_sky.shape[0]):
             # Get atmospheric conditions for current on_sky frame
-            fried, turbpro, windspd, winddrct, _, _ = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", 
-                                                                                 on_sky[i][1])
+            fried, turbpro, windspd, winddrct, _, _, _, _ = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", 
+                                                                                       on_sky[i][1])
             
             # Make new PSD based on input total jitter amplitude
             psd_file = keck_utils.make_keck_vib_psd(amp)
@@ -2074,8 +2096,8 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, base_root:Path, thres=0.05):
         for l0 in l0s:
             for i in range(on_sky.shape[0]):
                 # Get atmospheric conditions for current on_sky frame
-                fried, turbpro, windspd, winddrct, _, _ = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", 
-                                                                                     on_sky[i][1])
+                fried, turbpro, windspd, winddrct, _, _, _, _ = estimate_on_sky_conditions(on_sky[i][1]+on_sky[i][0]+"_psf.fits", 
+                                                                                           on_sky[i][1])
 
                 # Set MAOS command based on current r0 and l0
                 maos_cmd = f"""maos -o A_keck_scao_lgs_gc_r0={r0}_l0={l0}_{on_sky[i][0]} -c A_keck_scao_lgs_gc.conf plot.all=1 plot.setup=1 surf=["Keck_ncpa_rmswfe130nm.fits", "'r0={r0};l0={l0};ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"] atm.r0z={fried} atm.wt={turbpro} atm.ws={windspd} atm.wddeg={winddrct} -O"""
@@ -2472,6 +2494,8 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     dmgains = np.empty(namesanddates.shape[0])
     ttgains = np.empty(namesanddates.shape[0])
     wfsgains = np.empty(namesanddates.shape[0])
+    tau0s = np.empty(namesanddates.shape[0])
+    theta0s = np.empty(namesanddates.shape[0])
 
     for i, sky in enumerate(namesanddates):
         sky_file = skyroot.as_posix() + f"/{sky[1]}nirc2_kp/{sky[0]}_psf.fits"
@@ -2500,7 +2524,7 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         wfsgains[i] = hdr['WSSMGN']
  
         # Pull atm/weather info for sky file
-        fried, turbpro, windspds, winddrcts, dimm, mass, dimmtime, masstime = estimate_on_sky_conditions(sky_file, sky_folder, verbose)
+        fried, turbpro, windspds, winddrcts, dimm, mass, dimmtime, masstime, tau_0, theta_0 = estimate_on_sky_conditions(sky_file, sky_folder, verbose)
         frieds[i] = fried
         dimms[i] = dimm
         masses[i] = mass
@@ -2516,6 +2540,8 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         # Store only ground layer speed and direction quantities
         spds[i] = windspds[0]
         drcts[i] = winddrcts[0]
+        tau0s[i] = tau_0
+        theta0s[i] = theta_0
    
     # Compute metrics for on-sky frames
     sky_strehls, sky_fwhms, sky_rmswfes = calc_strehl_on_sky(sky_paths, "temp.txt")
@@ -2570,7 +2596,10 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         maos_stddev_rmswfes_alltypes[:,i] = maos_rmswfe_stds
         maos_stddev_strehls_alltypes[:,i] = maos_strehl_stds
 
-    out = np.column_stack((namesanddates, mjds, expstarts, expstops, airmasses, frieds, 
+    # See if telemetry exists for on-sky dates
+    _, telem_status = find_on_sky_telemetry_file(datecol)
+
+    out = np.column_stack((namesanddates, mjds, telem_status, expstarts, expstops, airmasses, frieds, tau0s,
                            dimms, dimmtimes, 
                            masses, masstimes, masswts0, masswts500, masswts1000, masswts2000, 
                            masswts4000, masswts8000, masswts16000, 
@@ -2579,7 +2608,7 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
                            sky_fwhms, maos_fwhms_alltypes, maos_stddev_fwhms_alltypes, lbwfsfwhms, 
                            sky_rmswfes, maos_rmswfes_alltypes, maos_stddev_rmswfes_alltypes, lgsrmswfes,
                            tot_maos_wfes_alltypes, ho_maos_wfes_alltypes, tt_maos_wfes_alltypes))
-    col_list = (['frames', 'dates', 'mjd', 'expstarts', 'expstops', 'airmasses', 'frieds', 
+    col_list = (['frames', 'dates', 'mjd', 'telem_status', 'expstarts', 'expstops', 'airmasses', 'frieds', 'tau0',
                 'dimms', 'dimmtimes', 'masses', 'masstimes', 'masswts0', 'masswts500', 
                 'masswts1000', 'masswts2000', 'masswts4000', 'masswts8000', 
                 'masswts16000', 'windspds', 'winddirs', 'temps', 'dmgains', 'ttgains',
@@ -2596,7 +2625,7 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     # User wants to save csv file
     if savecsvto != None:
         # Column names that are a bit more descriptive than keywords
-        aliases = ['Frame', 'Date (UT)', 'MJD', 'Expstart (UT)', 'Expstop (UT)', 'Airmass', 'Fried (m)', 
+        aliases = ['Frame', 'Date (UT)', 'MJD', 'Telemetry?', 'Expstart (UT)', 'Expstop (UT)', 'Airmass', 'Fried (m)', 'Tau0 (s)', 
                    'DIMM (\'\')', 'Time of DIMM (HH:MM:SS) (UT)', 'MASS (\'\')', 'Time of MASS (HH:MM:SS) (UT)', 
                    'MASS wt 0 m', 'MASS wt 500 m', 'MASS wt 1000 m', 'MASS wt 2000 m', 'MASS wt 4000 m', 
                    'MASS wt 8000 m', 'MASS wt 16000 m', 'Wind spd (m/s)', 'Wind drct (deg)', 'Tube Temp (Celsius)',
@@ -2608,6 +2637,54 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         df.to_csv(savecsvto, index=False, header=aliases)
     
     return df
+
+def find_on_sky_telemetry_file(dates:list, telem_type:str, telem_home:Path=Path('/g/lu/data/keck_telemetry/')):
+    """
+    Function to search keck_telemetry directory and see if a telemetry file exists for a night
+    of observation
+
+    Inputs:
+    --------
+    dates       : array-like, dtype=str
+        List of on-sky observation dates for which to see if telemetry exists
+
+    telem_type  : str
+        Type of telemetry file for which to search (see VALID_TYPE below) 
+        
+    telem_home  : str, default='/g/lu/data/keck_telemetry/'
+        Path to home of all telemetry files in which to search. Default is keck_telemetry
+        location
+
+    Outputs:
+    --------
+    telem_paths : list, dtype=str
+        List of paths to telemetry files that exist for input on-sky observation dates
+
+    telem_mask  : np.array, dtype=bool
+        Boolean mask for use in dataframe analysis
+
+    By Brooke DiGia
+    """
+    # Valid telemetry types for which to search (based on the types I have seen in keck_telemetry, will
+    # expand if telemetry is sourced from another location)
+    VALID_TYPE = {'LGS', 'NGS', 'fullLGS', 'fullNGS'}
+    if telem_type not in VALID_TYPE:
+        raise ValueError(f"find_on_sky_telemetry_file: telem_type must be one of {VALID_TYPE}")
+    
+    telem_paths = []
+    telem_mask = np.empty(len(dates), dtype=bool)
+    for i, date in enumerate(dates):
+        print(date)
+        paths = [f.as_posix() for f in telem_home.glob(f"{date}/sdata90*/nirc*/*/n*_{telem_type}_trs.sav")]
+        telem_paths.extend(paths)
+        if paths == []:
+            # No telemetry exists for this observation date
+            telem_mask[i] = False
+        else:
+            # Telemetry exists for this observation date
+            telem_mask[i] = True
+
+    return telem_paths, telem_mask
 
 def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, baseroot:Path):
     """
@@ -2887,6 +2964,212 @@ def get_parameter_from_done_conf(directory, param_name):
 
     file.close()
     return None
+
+def tau0(dimm, mass, windspd, airmass, wvl=500):
+    """
+    Function to calculate the atmospheric coherence time tau0 at zenith
+
+    Inputs:
+    --------
+    dimm        : float
+        Total seeing (arcsec) from DIMM data file
+    
+    mass        : 7-entry 1D array, floats
+        c_l weights from MASS data file. Response from 
+        Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
+        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
+        last element of this array is the total MASS seeing (not a weight),
+        so it is not used in the calculation
+
+        hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0] m
+
+    windspd     : array, dtype=float
+        Wind speed profile at heights h 
+
+    airmass     : float
+        Airmass, required for r0 calculation within estimate_turbulence()
+
+    wvl         : float, default = 500
+        Wavelength in nm for which to calculate coherence time. Convention is
+        500 nm
+
+    Outputs:
+    --------
+    tau         : float
+        Atmospheric coherence time tau0 (named tau to avoid overloading function name) 
+        as defined by Travouillon et al 2009. See also equation 1 at:
+        https://arxiv.org/pdf/1101.3211
+
+    By Brooke DiGia
+    """
+    # Convert nm to m
+    wvl = wvl*1e-9
+
+    # Known heights above telescope (m)
+    hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+
+    r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl)
+
+    approx = 0
+    norm = 0
+    # Discretize integral in tau0 analytical equation and sum up terms
+    for i, h in enumerate(hts):
+        approx += cl[i] * np.abs(windspd[i])**(5.0/3.0)
+        norm += cl[i]
+
+    tau = 0.057 * wvl**(6.0/5.0) * approx**(-3.0/5.0)
+
+    # Calculate tau using second formula 
+    # (Roddier 1981, http://www.eso.org/gen-fac/pubs/astclim/papers/venice2001/venice2001-msarazin.pdf, 
+    # equations 3-4)
+    Vbar = ( approx / norm )**(3.0/5.0)
+    tau2 = ( 0.31 * r0 ) / Vbar 
+    print(0.057 * wvl**(6.0/5.0))
+    print(tau2)
+    return tau
+
+def theta0(dimm, mass, airmass, zenith, wvl=500):
+    """
+    Function to calculate the isoplanatic angle theta0 
+    (http://www.ctio.noirlab.edu/~atokovin/tutorial/part1/turb.html, equation 12)
+
+    See equation 7 of Claire Max's AO notes: 
+    https://www.ucolick.org/~max/289/Assigned%20Readings/Max_Adaptive_Optics_Intro_v1.pdf
+
+    Inputs:
+    --------
+    dimm        : float
+        Total seeing (arcsec) from DIMM data file
+    
+    mass        : 7-entry 1D array, floats
+        c_l weights from MASS data file. Response from 
+        Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
+        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
+        last element of this array is the total MASS seeing (not a weight),
+        so it is not used in the calculation
+
+        hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0] m
+
+    airmass     : float
+        Airmass, required for r0 calculation within estimate_turbulence() 
+
+    zenith      : float
+        Zenith angle of observation (zenith at which to calculate theta0)
+
+    wvl         : float, default = 500
+        Wavelength at which to calculate angle (nm). Convention is 500 nm
+
+    Outputs:
+    --------
+    theta0 : float
+        Isoplanatic angle
+
+    By Brooke DiGia
+    """
+    # Known heights above telescope (m)
+    hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+    r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl)
+
+    numerator = 0
+    denominator = 0
+    for i, h in enumerate(hts):
+        numerator += cl[i] * hts[i]**(5.0/3.0)
+        denominator += cl[i]
+
+    hbar = ( numerator / denominator )**(3.0/5.0)
+    theta0 = 0.314 * np.cos(zenith) * ( r0 / hbar )
+    print(theta0)
+    return theta0
+
+
+def centroid_residual_to_RMSWFE(telem_path:str):
+    """
+    Function to calculate RMS wave front error from centroid offsets per subaperture from
+    telemetry file
+
+    Inputs:
+    --------
+    telem_path : string
+        Path to telemetry file
+
+    Outputs:
+    --------
+    phibar     : float
+        Average RMS WFE (nm)
+
+    phi        : array, dtype=float
+        RMS WFE (nm) averaged over actuators as a function of telemetry time
+
+    data.a.residualrms[0] : array, dtype=float, length=duration of telemetry timestream
+        Residual RMS measurements spaced ~ 1 ms apart (delta_t in telemetry timestamps).
+        Return this alongside calculated phi for comparison
+    
+    By Brooke DiGia
+    """
+    data = load_telemetry(telem_path)
+      
+    # Average over actuators on DM 
+    u = np.mean(np.subtract(data.a.dmcommand[0], data.a.residualwavefront[0][:, 0:349]), axis=1)
+    u = np.tile(u, (data.a.residualwavefront[0][:, 0:349].shape[1], 1)).T
+    phi = np.sqrt( np.mean(np.square(data.a.dmcommand[0] - data.a.residualwavefront[0][:, 0:349] - u), 
+                           axis=1) )
+
+    phi *= (0.6 * 1000.0) # 0.6 microns/volts, then * 1000.0 for microns to nm
+    # Average over time
+    phibar = np.mean(phi)
+
+    return phibar, phi, data.a.residualrms[0] 
+
+def load_telemetry(telem_path:str):
+    """
+    Function to load in telemetry file from Path location
+
+    Inputs:
+    --------
+    telem_path : string
+        Path to telemetry file
+
+    Outputs:
+    --------
+    data       : dictionary object
+        Dictionary object containing telemetry data
+
+    By Brooke DiGia
+    """
+    data = readsav(telem_path)
+    return data
+
+def approximate_num_actuators(dmdx:float):
+    """
+    Function to approximate the number of actuators on Keck AO DM 
+    based on MAOS dm.dx parameter. This approximation assumes a circular deformable
+    mirror where the primary mirror is 11 m across.
+
+    Inputs:
+    --------
+    dmdx           : float
+        MAOS dm.dx parameter value (m)
+
+    Outputs:
+    --------
+    N_act          : float
+        Number of actuators calculated directly from equation
+
+    np.ceil(N_act) : float
+        Rounded number of actuators for input into MAOS
+
+    By Brooke DiGia, calculation of number of actuators N_act from Brianna Peck
+    """
+    D = 11 # meters
+    N_act = ( np.pi * D**2.0 ) / (4.0 * dmdx**2.0)
+    print(f"Rounding {N_act} to {np.ceil(N_act)}")
+    return N_act, np.ceil(N_act)
+
+def centroid_offset_to_RMSWFE(telem_path:str):
+    """
+    """
+    return 
+
 
 """
 The following *_on_sky() functons are copied from the KAI repository, linked

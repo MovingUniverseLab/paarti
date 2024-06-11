@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 from pykoa.koa import Koa
 from pathlib import Path
-from astropy.table import Table, Column
+from astropy.table import Table
 from astropy.io import fits
 from matplotlib import pyplot as plt
 from astropy.nddata import Cutout2D
@@ -51,6 +52,8 @@ def fetch_koa(date:str, koa_dir:Path, verbose:bool=False, download:bool=True):
         lev1file=0, \
         calibfile=1, \
         calibdir=1)
+
+    return
 
 def load_koa(koa_path:Path, plot:bool=True):
     """
@@ -257,3 +260,75 @@ def clean_koa(koa_path, inner_radius:int=300, outer_radius:int=400):
     
     new_hdu = fits.PrimaryHDU(img_norm)
     return hdr, img_norm
+
+def load_koa_starlist(starlist:Path):
+    """
+    Function to read in Keck star list text files
+
+    Inputs:
+    -------
+    starlist : Path
+        Path to star list .txt file
+
+    Outputs:
+    -------
+    stardata : Pandas dataframe
+        Dataframe containing information stored in starlist
+
+    By Brooke DiGia
+    """
+    # Column specifications for starlist, as half-intervals
+    colspecs = [(0, 3), (16, 18), (19, 21), (22, 28), (29, 32), (33, 35), (36, 41), (42, 48), (54, 59), (64, 68), (73, 74)]
+    stardata = pd.read_fwf(starlist, colspecs=colspecs, header=None)
+    stardata.columns = ['name', 'RA hh', 'RA mm', 'RA ss.sss', 'DEC +dd', 'DEC mm', 'DEC ss.ss', 'equinox', 'vmag', 'b-v', 'lgsflag']
+    return stardata
+
+def lookup_koa_object(koa_path:Path, starlist:Path):
+    """
+    Function to look up Keck engineering star in KOA eng image from star list(s).
+    Keck star lists that are currently in this directory:
+        - master_tycho_list_v12.txt
+        - master_tycho_list_v10.txt
+
+    Make sure you have these lists within your own working directory. They can be copied
+    from the maos_utils module of the PAARTI repository
+
+    Inputs:
+    -------
+    koa_path : Path
+        Path to KOA FITS file to load in
+
+    starlist : Path
+        Path to star list .txt file
+
+    Outputs:
+    --------
+    ra       : float
+        Right ascension (RA) in arcsec
+
+    dec      : float
+        Declination (DEC) in arcsec
+
+    mag      : float
+        V- or R-band magnitude of engineering star
+
+    By Brooke DiGia     
+    """
+    # Load in KOA image
+    _, hdr = load_koa(koa_path)
+
+    # Load starlist
+    engstars = load_koa_starlist(starlist)
+
+    # Which object was observed?
+    koa_object = hdr['OBJECT']
+
+    # Search engstars data for koa_object and pull corresponding
+    # RA/DEC and magnitude (V or R band, depending on which is
+    # available in starlist)
+
+    # Convert RA and DEC to arcsec
+
+    return ra, dec, mag
+
+    
