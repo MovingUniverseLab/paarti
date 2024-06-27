@@ -6,11 +6,13 @@ from astropy.table import Table
 from astropy.io import fits
 from matplotlib import pyplot as plt
 from astropy.nddata import Cutout2D
+from astropy import units as u
+from astropy.coordinates import SkyCoord
 from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
 from astropy.stats import sigma_clipped_stats
 from photutils.detection import DAOStarFinder
 from astropy.visualization import (MinMaxInterval, SqrtStretch,
-                                   ImageNormalize, LogStretch)
+                                   ImageNormalize)
 
 # By Brooke DiGia
 
@@ -320,15 +322,55 @@ def lookup_koa_object(koa_path:Path, starlist:Path):
     # Load starlist
     engstars = load_koa_starlist(starlist)
 
-    # Which object was observed?
+    # Pull object + RA/DEC coordinates in degrees
+    # (OBJECT keyword may not
+    # name object observed, e.g. 'ao_confirmation')
     koa_object = hdr['OBJECT']
+    koa_ra = hdr['RA']
+    koa_ra_offset = hdr['RAOFF'] 
+    koa_dec = hdr['DEC']
+    koa_dec_offset = hdr['DECOFF']
+
+    # FITS header defines above RA/DEC coordinates as that of telescope
+    # and provides RA/DECOFF as right ascension and declination offsets 
+    # --> adding these gives RA/DEC of object observed? Not entirely sure what
+    # offset refers to
+    koa_sky_coords = SkyCoord(ra=float(koa_ra+koa_ra_offset)*u.degree, 
+                              dec=float(koa_dec+koa_dec_offset)*u.degree, 
+                              frame='icrs')
+    # Starlist has RA/DEC in hh/dd mm ss format
+    koa_sky_coords.to_string('hmsdms')
 
     # Search engstars data for koa_object and pull corresponding
     # RA/DEC and magnitude (V or R band, depending on which is
     # available in starlist)
+    wfs_thetax = np.empty((1, 3))
+    wfs_thetay = np.empty((1, 3))
+    mag = 0
+    min_diff = np.inf
+    min_diff_i = 0
+    for i, star in engstars.iterrows():
+        ra = f"{star['RA hh']}h{star['RA mm']}m{star['RA ss.sss']}s"
+        dec = f"{star['DEC +dd']}h{star['DEC mm']}m{star['DEC ss.ss']}s"
+        c = SkyCoord(ra, dec, frame='icrs')
+        # Convert RA and DEC to degrees and subtract from target KOA
+        # RA and DEC. Smallest difference's info will be stored
+        ra_diff = koa_ra - c.ra
+        dec_diff = koa_dec - c.dec
+        # Add differences in quadrature
+        diff = np.sqrt(ra_diff**2.0 + dec_diff**2.0)
+        # If this difference is smaller than currently stored, replace
+        # min_diff with difference
+        if diff < min_diff:
+            min_diff = diff
+            min_diff_i = i
+            # Convert RA and DEC to arcsec via  WFS pixel scale to calculate
+            # wfs.thetax/y = [LGS star TT STRAP star LBWFS star] in arcsec
+            # for MAOS config input
+            # wfs_thetax = 
+            # wfs_thetay = 
+            mag = star['vmag']
 
-    # Convert RA and DEC to arcsec
-
-    return ra, dec, mag
+    return mag, wfs_thetax, wfs_thetay
 
     

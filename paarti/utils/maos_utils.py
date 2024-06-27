@@ -319,18 +319,18 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
         Number of background photons per pixel within
         subaperture
     """
-    print('Assumptions:')
-    print(f'  Wave-Front Sensor       = {wfs}')
-    print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
-    print(f'  Throughput (w QE)       = {throughput:.2f}')
-    print(f'  Plate Scale             = {ps:.3f} arcsec/pix')
-    print(f'  Spot Size Diameter      = {theta_beta*206265:.3f} arcsec')
-    print(f'  Filter                  = {band}')
-    print(f'  Readnoise               = {sigma_e} e-')
-    print(f'  Pixels per Subaperture  = {pix_per_ap}')
-    print(f'  Integration Time        = {time:.4f} s')
-    print(f'  Guide Star Magnitude    = {m:.2f}')
-    print()
+    # print('Assumptions:')
+    # print(f'  Wave-Front Sensor       = {wfs}')
+    # print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
+    # print(f'  Throughput (w QE)       = {throughput:.2f}')
+    # print(f'  Plate Scale             = {ps:.3f} arcsec/pix')
+    # print(f'  Spot Size Diameter      = {theta_beta*206265:.3f} arcsec')
+    # print(f'  Filter                  = {band}')
+    # print(f'  Readnoise               = {sigma_e} e-')
+    # print(f'  Pixels per Subaperture  = {pix_per_ap}')
+    # print(f'  Integration Time        = {time:.4f} s')
+    # print(f'  Guide Star Magnitude    = {m:.2f}')
+    # print()
     
     # Calculate number of photons and background photons
     Np, Nb = n_photons(side, time, m, band, ps, throughput)
@@ -361,11 +361,11 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     # Noise equivalent angle in milliarcseconds (eq 65)
     sigma_theta = theta_beta/SNR  * ( 180.0/math.pi ) * 60.0 * 60.0 * 1000.0
 
-    print('Outputs:')
-    print(f"  N_photons from star (powfs.siglev for MAOS config): {Np:.3f}")
-    print(f"  N_photons per pixel from background (powfs.bkgrnd):   {Nb:.3f}")
-    print(f"  SNR:                                   {SNR:.3f}")
-    print(f"  NEA (powfs.nearecon): {sigma_theta:.3f} mas")
+    # print('Outputs:')
+    # print(f"  N_photons from star (powfs.siglev for MAOS config): {Np:.3f}")
+    # print(f"  N_photons per pixel from background (powfs.bkgrnd):   {Nb:.3f}")
+    # print(f"  SNR:                                   {SNR:.3f}")
+    # print(f"  NEA (powfs.nearecon): {sigma_theta:.3f} mas")
     
     return SNR, sigma_theta, Np, Nb
     
@@ -1210,6 +1210,7 @@ def fit_gaussian2d(img, coords, boxsize, plot=False, fwhm_min=1.7,
     g2d           : Gaussian model object
         2D Gaussian fit
     """
+    print(f"Image shape {img.shape}, coords = {coords}")
     cutout_obj = Cutout2D(img, coords, boxsize, mode='strict')
     cutout = cutout_obj.data
     x1d = np.arange(0, cutout.shape[0])
@@ -1316,7 +1317,7 @@ def stddev_to_fwhm(stddev):
     fwhm = 2.0 * math.sqrt( 2.0 * math.log(2.0) ) * stddev
     return fwhm 
 
-def fried(DIMM, w_mass, airmass, wvl=500):
+def fried(DIMM, w_mass, airmass:float, wvl=500.0):
     """
     Function to calculate the Fried parameter r0z given the total seeing
     in arcseconds.
@@ -1343,7 +1344,7 @@ def fried(DIMM, w_mass, airmass, wvl=500):
     By Brooke DiGia
     """ 
     r0z1 = 0.98 * ( wvl*1e-9 / arcsec_to_rad(DIMM) )
-    r0z2 = ( 0.423 * ( ( 2.0 * np.pi ) / wvl)**2 * airmass * np.sum(w_mass) )**(-3.0/5.0)
+    r0z2 = ( 0.423 * ( ( 2.0 * np.pi ) / wvl)**2 * float(airmass) * np.sum(w_mass) )**(-3.0/5.0)
     print(f"r0z from DIMM = {r0z1} | r0z from MASS discrete integral = {r0z2}")
     return r0z1
 
@@ -1907,13 +1908,13 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
         # Estimate turbulence for beginning and end of exposure
         r0_start, start_turb = estimate_turbulence(closest_dimm_start, 
                                                    mass_profile_start,
+                                                   float(hdr['AIRMASS']),
                                                    date_for_massdimm, 
-                                                   hdr['AIRMASS'],
                                                    plot)
         r0_end, end_turb = estimate_turbulence(closest_dimm_stop, 
                                                mass_profile_stop,
+                                               float(hdr['AIRMASS']),
                                                date_for_massdimm, 
-                                               hdr['AIRMASS'],
                                                plot)
 
         # Average CFHT data across exposure to calculate ground layer wind speed
@@ -2202,7 +2203,7 @@ def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto,
             maos[i] = fwhm_array[-1]
     
     # Plotting
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     ax.set_xlabel(f"MAOS {metric} (calculated via PAARTI)")
     ax.set_ylabel(f"On-Sky GC {metric}")
     ax.set_title(f"On-Sky {metric} versus MAOS {metric}")
@@ -2521,7 +2522,7 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         lbwfsfwhms[i] = hdr['AOLBFWHM']
         dmgains[i] = hdr['DMGAIN']
         ttgains[i] = hdr['DTGAIN']
-        wfsgains[i] = hdr['WSSMGN']
+        wfsgains[i] = hdr['GAIN']
  
         # Pull atm/weather info for sky file
         fried, turbpro, windspds, winddrcts, dimm, mass, dimmtime, masstime, tau_0, theta_0 = estimate_on_sky_conditions(sky_file, sky_folder, verbose)
@@ -2597,7 +2598,7 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         maos_stddev_strehls_alltypes[:,i] = maos_strehl_stds
 
     # See if telemetry exists for on-sky dates
-    _, telem_status = find_on_sky_telemetry_file(datecol)
+    _, telem_status = find_on_sky_telemetry_file(datecol, 'LGS')
 
     out = np.column_stack((namesanddates, mjds, telem_status, expstarts, expstops, airmasses, frieds, tau0s,
                            dimms, dimmtimes, 
@@ -2638,7 +2639,8 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     
     return df
 
-def find_on_sky_telemetry_file(dates:list, telem_type:str, telem_home:Path=Path('/g/lu/data/keck_telemetry/')):
+def find_on_sky_telemetry_file(dates:list, telem_type:str, 
+                               telem_home:Path=Path('/g/lu/data/keck_telemetry/')):
     """
     Function to search keck_telemetry directory and see if a telemetry file exists for a night
     of observation
@@ -2674,7 +2676,6 @@ def find_on_sky_telemetry_file(dates:list, telem_type:str, telem_home:Path=Path(
     telem_paths = []
     telem_mask = np.empty(len(dates), dtype=bool)
     for i, date in enumerate(dates):
-        print(date)
         paths = [f.as_posix() for f in telem_home.glob(f"{date}/sdata90*/nirc*/*/n*_{telem_type}_trs.sav")]
         telem_paths.extend(paths)
         if paths == []:
@@ -2686,7 +2687,8 @@ def find_on_sky_telemetry_file(dates:list, telem_type:str, telem_home:Path=Path(
 
     return telem_paths, telem_mask
 
-def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, baseroot:Path):
+def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, 
+                             baseroot:Path):
     """
     Function to run MAOS simulation(s) with config set by a session
     of on-sky observation (e.g. a simulation to compare to a night
@@ -2728,9 +2730,41 @@ def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, baseroot:
 
         # Zenith angle
         angle = np.degrees(np.arccos(1.0/float(hdr['AIRMASS'])))
+        # Wavelength at which to run MAOS (microns)
+        wvl = float(hdr['TARGWAVE']) * 1.0e-6 # multiply by 1e-6 to convert from microns to m
+        # STRAP WFS integration time (milli-sec)
+        if 'STINTTIM' not in hdr:
+            continue
+        hdr_strap_int_time = float(hdr['STINTTIM'])
+        # SHWFS frame rate (Hz)
+        hdr_shwfs_frame_rate = float(hdr['WSFRRT'])
+        hdr_shwfs_int_time = (1.0/hdr_shwfs_frame_rate)*1000.0 # ms
+        sim_dt = (1.0/472.0)*1000.0 # ms
+        howfs_dtrat = int(sim_dt / hdr_shwfs_int_time)
+        strap_dtrat = int(sim_dt / hdr_strap_int_time)
+        # Compose powfs.dtrat array for input into MAOS config command override
+        dtrat = [howfs_dtrat, strap_dtrat, 7080]
+        # Calculate siglev/bkgrnd/nearecon config parameters using variable
+        # integration times from headers
+        _, howfs_nearecon, howfs_siglev, howfs_bkgrnd = keck_nea_photons(8.1, 'LGSWFS', 
+                                                                         hdr_shwfs_int_time/1000.0)
+        _, strap_nearecon, strap_siglev, strap_bkgrnd = keck_nea_photons(14.0, 'STRAP', 
+                                                                         hdr_strap_int_time/1000.0)
+        nearecon = [howfs_nearecon, strap_nearecon, 8.4]
+        siglev = [howfs_siglev, strap_siglev, 3723]
+        bkgrnd = [howfs_bkgrnd, strap_bkgrnd, 25.3]
         # Calculate atm parameters
-        fried, turbpro, windspds, winddrcts, _, _, _, _ = estimate_on_sky_conditions(sky_file, 
-                                                                                     sky_folder)
+        fried, turbpro, windspds, winddrcts, _, _, _, _, _, _ = estimate_on_sky_conditions(sky_file, 
+                                                                                           sky_folder)
+        # Size of on-sky image
+        if int(hdr['NAXIS1']) == int(hdr['NAXIS2']):
+            size = int(hdr['NAXIS1'])
+        else:
+            size = min(int(hdr['NAXIS1']), int(hdr['NAXIS2']))
+
+        # MAOS seems to give weird warnings when input evl.psfsize parameter is odd
+        if size % 2 != 0:
+            size -= 1
         
         mode = ''
         if simtype == 'piston':
@@ -2752,10 +2786,9 @@ def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, baseroot:
         for seed in seeds:
             # Must be in MAOS simulation directory to run successfully
             if os.getcwd() != baseroot.as_posix():
-                print("Moving current working directory to MAOS simulation directory...\n")
                 os.chdir(baseroot)
 
-            maos_cmd = f"maos -o A_keck_scao_lgs_gc_{mode}_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf sim.seeds={seed} sim.zadeg={angle} sim.wspsd={psd_file} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} surf={surf_cmd} -O"
+            maos_cmd = f"maos -o A_keck_scao_lgs_gc_{mode}_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf evl.psfsize={size} sim.seeds={seed} evl.wvl={wvl} powfs.dtrat={dtrat} sim.zadeg={angle} powfs.siglev={siglev} powfs.bkgrnd={bkgrnd} powfs.nearecon={nearecon} sim.wspsd={psd_file} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} surf={surf_cmd} -O"
             os.system(maos_cmd)
 
 def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
@@ -2821,7 +2854,7 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
                 folder = baseroot.as_posix() + f"/A_keck_scao_lgs_gc_surf_wfs0_comp_{framedates[i][0]}_seed{seed}_epoch{framedates[i][1]}/"
             elif simtype == 'psd+ncpa-seen':
                 folder = baseroot.as_posix() + f"/A_keck_scao_lgs_gc_surf_wfs1_comp_{framedates[i][0]}_seed{seed}_epoch{framedates[i][1]}/"
-            print(f"Looking for MAOS results stored in: {folder}")
+
             try:
                 maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes = calc_strehl(folder, out_file, sim_seed=seed)
                 _, maos_cl_metrics, _, _ = print_wfe_metrics(directory=folder, seed=seed)
@@ -3006,7 +3039,7 @@ def tau0(dimm, mass, windspd, airmass, wvl=500):
     wvl = wvl*1e-9
 
     # Known heights above telescope (m)
-    hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+    hts = np.array([500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
 
     r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl)
 
@@ -3067,7 +3100,7 @@ def theta0(dimm, mass, airmass, zenith, wvl=500):
     By Brooke DiGia
     """
     # Known heights above telescope (m)
-    hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]
+    hts = np.array([500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
     r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl)
 
     numerator = 0
@@ -3120,6 +3153,103 @@ def centroid_residual_to_RMSWFE(telem_path:str):
 
     return phibar, phi, data.a.residualrms[0] 
 
+def shwfs_supapint(telem_path:str):
+    """
+    Function to calculate the SUPAPERTURE intensity using telemetry data for 
+    304 subapertures. This quantity corresponds to 
+
+    Units of MAOS config parameter siglev : only listed as signal level at sim.dtref
+    powfs.bkgrnd = sky background in unit e/pixel/frame at sim.dtref
+
+    Inputs:
+    --------
+    telem_path     : string
+        Path to telemetry file
+
+    Note regarding SUBAPINTENSITY units: 
+    https://mirametrics.com/help/mira_al_8/source/magnitude_calculations.htm
+
+    The value of Counts is the net signal from the object, above the sky background, 
+    and measured in the raw pixel value units (often called "ADU's"). The telemetry 
+    KAON specifies SUBAPINTENSITY units as adu, so I believe they are already in counts
+
+    Outputs:
+    --------
+    flux_per_subap : 2D array, dtype=float
+        Array of fluxes per 304 subapertures over time ([304, length of timestream]),
+        along with the mean of this array over apertures and time for input into
+        MAOS config parameter powfs.siglev[0] (first entry for SHWFS quantity)
+
+    By Brooke DiGia
+    """
+    data = load_telemetry(telem_path)
+
+    shwfs_gain = 0.0
+    shwfs_int_time = 0.0
+    for item in data.header:
+        decoded:str = item.decode('ascii')
+        if decoded.startswith('GAIN'):
+            gain = decoded.split(' ')[2]
+            shwfs_gain = float(gain[1:])
+        # SHWFS frame rate (Hz)
+        elif decoded.startswith('WSFRRT'):
+            frame_rate = decoded.split(' ')[3]
+            shwfs_int_time = (1.0/float(frame_rate[1:]))*1000.0 # ms
+
+    # SUBAPINTENSITY is dark-subtracted and flat-field corrected intensity per 304 subaperture
+    # Flux = Gain * Counts / Exptime (https://mirametrics.com/help/mira_al_8/source/magnitude_calculations.htm)
+    flux_per_subap = ( data.a.subapintensity[0] * shwfs_gain ) / shwfs_int_time
+
+    return flux_per_subap, np.mean(flux_per_subap)
+
+def strap_flux(telem_path:str):
+    """
+    Function to calculate 
+
+    Inputs:
+    -------
+    telem_path     : string
+        Path to telemetry file
+
+    Outputs:
+    --------
+    data.b.apdcounts[0]           : array, dtype=float
+        Array of APDCOUNTS data from telemetry in units of counts
+        Compare this to calc_apdcounts
+
+    np.mean(data.apd_sky_back[0]) : float
+        For input into MAOS config parameter powfs.bkgrnd for STRAP entry (powfs.bkgrnd[1]).
+
+    calc_apdcounts                : float
+        APDCOUNTS average calculated from STRAPDQMN (only one quantity per night of telemetry)
+
+    flux_from_calc_apdcounts      : float
+
+    flux                          : float
+        
+
+    By Brooke DiGia
+    """
+    data = load_telemetry(telem_path)
+    calc_apdcounts = np.empty(data.b.apdcounts[0].shape)
+
+    strapdqmn = 0.0
+    strap_int_time = 0.0
+    for item in data.header:
+        decoded:str = item.decode('ascii')
+        if decoded.startswith('STRAPDQMN') or decoded.startswith('STAPDQMN'):
+            dqmn = decoded.split(' ')[1]
+            strapdqmn = float(dqmn[1:])
+        # STRAP integration time (ms)
+        elif decoded.startswith('STINTTIM'):
+            int_time = decoded.split(' ')[1]
+            strap_int_time = float(int_time[1:])
+
+    calc_apdcounts = strapdqmn * strap_int_time
+    # flux_from_calc_apdcounts = calc_apdcounts * strap_gain 
+    # flux = data.b.apdcounts[0] * strap_gain 
+    return data.b.apdcounts[0], calc_apdcounts, np.mean(data.apd_sky_back[0]) #, flux_from_calc_apdcounts
+
 def load_telemetry(telem_path:str):
     """
     Function to load in telemetry file from Path location
@@ -3165,11 +3295,155 @@ def approximate_num_actuators(dmdx:float):
     print(f"Rounding {N_act} to {np.ceil(N_act)}")
     return N_act, np.ceil(N_act)
 
-def centroid_offset_to_RMSWFE(telem_path:str):
+def telemetry_data(telem_paths:list=None):
     """
-    """
-    return 
+    Function to create Pandas dataframe object from input telemetry files/paths.
 
+    Inputs:
+    -------
+    telem_paths : array, dtype=str, default=None
+        Array of input telemetry files for which to collect telemetry into
+        dataframe. If telem_paths is None (none are input), assume the user
+        wants all LGS telemetry files loaded and put into dataframe
+
+    Outputs:
+    --------
+    df          : Pandas dataframe, mixed data types
+        Telemetry dataframe
+
+    By Brooke DiGia
+    """
+    if telem_paths == None:
+        # Fetch names of all 'LGS' telemetry files (takes ~few seconds)
+        telem_home = Path("/g/lu/data/keck_telemetry/")
+        paths = [f.as_posix() for f in telem_home.glob(f"*/sdata90*/nirc*/*/n*_LGS_trs.sav")]
+    else:
+        paths = telem_paths
+
+    lgrmswfes = np.empty(len(paths))
+    strapdqmns = np.empty(len(paths))
+    strap_int_times = np.empty(len(paths))
+    strap_time_intervals = np.empty(len(paths))
+    shwfs_int_times = np.empty(len(paths))
+    shwfs_time_intervals = np.empty(len(paths))
+    apdcounts = np.empty(len(paths))
+    apdskybkgrnds = np.empty(len(paths))
+    mean_residualrms = np.empty(len(paths))
+    mean_rmswfe = np.empty(len(paths))
+    mean_subapint = np.empty(len(paths))
+    dm_gains = np.empty(len(paths))
+    tt_gains = np.empty(len(paths))
+    ut_gains = np.empty(len(paths))
+    strap_siglevs = np.empty(len(paths))
+    strap_bkgrnds = np.empty(len(paths))
+    shwfs_siglevs = np.empty(len(paths))
+    shwfs_bkgrnds = np.empty(len(paths))
+    shwfs_gains = np.empty(len(paths))
+    for i, path in enumerate(paths):
+        print(f"Telemetry file {i+1} out of {len(paths)} | {path}")
+        data = load_telemetry(path)
+        
+        # Collect header metrics for this telemetry file
+        for item in data.header:
+            decoded:str = item.decode('ascii')
+            # LGRMSWF = closed-loop HO RMS WF residual for the night of telemetry
+            if decoded.startswith('LGRMSWF'):
+                lgrmswf = decoded.split(' ')[2]
+                lgrmswfes[i] = float(lgrmswf[1:])
+            # STRAPDQMN = strap quad mean apd counts for the night of telemetry
+            # some telemetry headers having typo keyword STAPDQMN
+            elif decoded.startswith('STRAPDQMN') or decoded.startswith('STAPDQMN'):
+                dqmn = decoded.split(' ')[1]
+                strapdqmns[i] = float(dqmn[1:])
+            # STRAP integration time (ms)
+            elif decoded.startswith('STINTTIM'):
+                int_time = decoded.split(' ')[1]
+                strap_int_times[i] = float(int_time[1:])
+            # SHWFS frame rate (Hz)
+            elif decoded.startswith('WSFRRT'):
+                frame_rate = decoded.split(' ')[3]
+                shwfs_int_times[i] = (1.0/float(frame_rate[1:]))*1000.0 # ms
+            # DM loop gain
+            elif decoded.startswith('DMGAIN'):
+                gain = decoded.split(' ')[3]
+                dm_gains[i] = float(gain[1:])
+            # TT loop gain 
+            elif decoded.startswith('DTGAIN'):
+                gain = decoded.split(' ')[3]
+                tt_gains[i] = float(gain[1:])
+            elif decoded.startswith('UTGAIN'):
+                gain = decoded.split(' ')[3]
+                ut_gains[i] = float(gain[1:])
+            elif decoded.startswith('GAIN'):
+                gain = decoded.split(' ')[24]
+                shwfs_gains[i] = float(gain)
+            
+        # APDCOUNTS data array within telemetry is [4, length of timestream]
+        # or transpose ([length of timestream, 4]), where 4 is four the four
+        # WFS quadrants. Average over time and space (four quadrants) to get
+        # one quantity for each night
+        apdcounts[i] = np.mean(data.b.apdcounts[0])
+        apdskybkgrnds[i] = np.mean(data.apd_sky_back[0])
+
+        # RESIDUALRMS data array within telemetry is one number for all actuators/subapertures
+        # for each time stamp. Average over this timestream to get one quantity for each night
+        # of telemetry
+        mean_residualrms[i] = np.mean(data.a.residualrms[0][0])
+
+        # SUBAPINTENSITY data array within telemetry is timestream of numbers for each of 304
+        # subapertures. Average over this entire array to get one quantity for each night of
+        # telemetry
+        mean_subapint[i] = np.mean(data.a.subapintensity[0])
+
+        # Calculate RMS WFE for telemetry night using RESIDUALWAVEFRONT data array
+        phi, phi_t, _ = centroid_residual_to_RMSWFE(path)
+        mean_rmswfe[i] = phi
+
+        # keck_nea_photons : use header integration times to compute MAOS input config parameters
+        # to compare against telemetry
+        _, _, howfs_siglev, howfs_bkgrnd = keck_nea_photons(8.1, 'LGSWFS', shwfs_int_times[i]/1000.0)
+        _, _, strap_siglev, strap_bkgrnd = keck_nea_photons(14.0, 'STRAP', strap_int_times[i]/1000.0)
+        strap_siglevs[i] = strap_siglev 
+        strap_bkgrnds[i] = strap_bkgrnd
+        shwfs_siglevs[i] = howfs_siglev
+        shwfs_bkgrnds[i] = howfs_bkgrnd
+
+        # Timestamp intervals to compare to header integration times
+        strap_time_intervals[i] = np.mean(np.diff(data.b.timestamp[0])) * 100.0 * (1e-9) * 1000.0 # ms
+        shwfs_time_intervals[i] = np.mean(np.diff(data.a.timestamp[0])) * 100.0 * (1e-9) * 1000.0 # ms
+
+    out = np.column_stack((paths, lgrmswfes, strapdqmns, mean_subapint, 
+                           strap_int_times, strap_time_intervals,
+                           shwfs_int_times, shwfs_time_intervals,
+                           apdcounts, apdskybkgrnds, 
+                           mean_residualrms, mean_rmswfe, 
+                           dm_gains, tt_gains, ut_gains,
+                           strap_siglevs, strap_bkgrnds, 
+                           shwfs_siglevs, shwfs_bkgrnds, 
+                           shwfs_gains))
+    col_list = (['filename', 'LGRMSWFs', 'STRAPDQMNs', 'SUBAPINTs', 
+                 'STINTTIMs', 'DATA.B Time Interval',
+                 'SHWFS int times', 'DATA.A Time Interval',
+                 'APDCOUNTS', 'APD_SKY_BACK', 
+                 'RESIDUALRMS', 'RMSWFE', 
+                 'DMGAIN', 'DTGAIN', 'UTGAIN',
+                 'STRAP SIGLEV', 'STRAP BKGRND', 
+                 'SHWFS SIGLEV', 'SHWFS BKGRND', 
+                 'SHWFS GAIN'])
+    df = pd.DataFrame(np.array(out)[1:], columns=col_list)
+
+    # Column names that are a bit more descriptive than keywords
+    aliases = ['Telemetry file', 'LGRMSWF (nm)', 'STRAPDQMN quad mean APD counts', 
+               'SUBAPERTURE MEAN INTENSITIES', 'STRAP INT TIMEs (ms)', 
+               'Spacing of STRAP telemetry (ms)', 'HO SHWFS INT TIMEs (ms)', 
+               'Spacing of SHWFS telemetry (ms)', 'APDCOUNTS', 'APD_SKY_BACK average over quad', 
+               'RESIDUALRMS (nm)', 'RMSWFE calculated from residualwavefront data', 
+               'DM loop gain', 'TT loop gain', 'UT gain, also TT loop?',
+               'STRAP siglev knp', 'STRAP bkgrnd knp', 'SHWFS siglev knp', 'SHWFS bkgrnd knp', 
+               'SHWFS gain']
+    df.to_csv("/Users/bdigia/work/ao/keck/maos/keck/my_base/LGS_telemetry.csv", index=False, header=aliases)
+    
+    return df
 
 """
 The following *_on_sky() functons are copied from the KAI repository, linked
