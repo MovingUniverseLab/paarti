@@ -8,18 +8,17 @@ from astropy.modeling import models, fitting
 import astropy.units as u
 import astropy
 from paarti.psf_metrics import metrics
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry
+from photutils import CircularAnnulus, aperture_photometry
 import glob
 from scipy import stats
 import scipy, scipy.misc, scipy.ndimage
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib as mpl
 import os
-import pdb
 import urllib
 from pandas import read_csv
 import pandas as pd
-import csv
 from kai import instruments
 from bs4 import BeautifulSoup
 import readbin # from MAOS
@@ -42,21 +41,21 @@ MinMag  MaxMag  Integ   Gain	SFW 	Sky
 6.0 	8.5 	1   	0.1 	nd2 	0
 0.0 	6.0 	1   	0.1 	nd3 	0"""
 
-def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
+def keck_nea_photons(m:float, wfs:str, wfs_int_time:float=1.0/800.0):
     """
     Calculate the number of photons, number of background photons,
     and noise equivalent angle for a natural guide star.
 
     Inputs:
     -------
-    m : float
+    m              : float
         Magnitude of guide star
-    wfs : str
+    wfs            : str
         Name of WFS to set camera properties.
 
     Optional Inputs:
     ----------------
-    wfs_int_time : float
+    wfs_int_time   : float
         Integration time of the WFS.
 
     Outputs:
@@ -82,7 +81,6 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
     Adaptive optics sky coverage modelling for extremely large 
     telescopes. Applied Optics 45, 35 (8964-8978)
     """
-    # List of pre-defined wave-front sensors (wfs)
     # LGSWFS-OCAM2K  : KAPA and KAPA+HODM simulation setups
     # LGS-HODM-HOWFS : KAPA+HODM+HOWFS
     wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 
@@ -262,8 +260,9 @@ def keck_nea_photons(m, wfs, wfs_int_time=1.0/800.0):
                                                            m)
     return SNR, sigma_theta, Np, Nb
 
-def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
-                                band, sigma_e, pix_per_ap, time, m):
+def keck_nea_photons_any_config(wfs:str, side:float, throughput:float, ps:float, 
+                                theta_beta:float, band:str, sigma_e:float, 
+                                pix_per_ap:int, time:float, m:float):
     """
     Inputs:
     ----------
@@ -312,25 +311,23 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
         Noise-equivalent angle in milliarcsec
  
     Np          : float
-        Number of photons from the star per pixel within
-        subaperture
+        Number of photons from the star per pixel within subaperture
 
     Nb          : float
-        Number of background photons per pixel within
-        subaperture
+        Number of background photons per pixel within subaperture
     """
-    # print('Assumptions:')
-    # print(f'  Wave-Front Sensor       = {wfs}')
-    # print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
-    # print(f'  Throughput (w QE)       = {throughput:.2f}')
-    # print(f'  Plate Scale             = {ps:.3f} arcsec/pix')
-    # print(f'  Spot Size Diameter      = {theta_beta*206265:.3f} arcsec')
-    # print(f'  Filter                  = {band}')
-    # print(f'  Readnoise               = {sigma_e} e-')
-    # print(f'  Pixels per Subaperture  = {pix_per_ap}')
-    # print(f'  Integration Time        = {time:.4f} s')
-    # print(f'  Guide Star Magnitude    = {m:.2f}')
-    # print()
+    print('Assumptions:')
+    print(f'  Wave-Front Sensor       = {wfs}')
+    print(f'  Pupil Aperture Diameter = {side:.2f} m (assumed square)')
+    print(f'  Throughput (w QE)       = {throughput:.2f}')
+    print(f'  Plate Scale             = {ps:.3f} arcsec/pix')
+    print(f'  Spot Size Diameter      = {theta_beta*206265:.3f} arcsec')
+    print(f'  Filter                  = {band}')
+    print(f'  Readnoise               = {sigma_e} e-')
+    print(f'  Pixels per Subaperture  = {pix_per_ap}')
+    print(f'  Integration Time        = {time:.4f} s')
+    print(f'  Guide Star Magnitude    = {m:.2f}')
+    print()
     
     # Calculate number of photons and background photons
     Np, Nb = n_photons(side, time, m, band, ps, throughput)
@@ -361,15 +358,16 @@ def keck_nea_photons_any_config(wfs, side, throughput, ps, theta_beta,
     # Noise equivalent angle in milliarcseconds (eq 65)
     sigma_theta = theta_beta/SNR  * ( 180.0/math.pi ) * 60.0 * 60.0 * 1000.0
 
-    # print('Outputs:')
-    # print(f"  N_photons from star (powfs.siglev for MAOS config): {Np:.3f}")
-    # print(f"  N_photons per pixel from background (powfs.bkgrnd):   {Nb:.3f}")
-    # print(f"  SNR:                                   {SNR:.3f}")
-    # print(f"  NEA (powfs.nearecon): {sigma_theta:.3f} mas")
-    
+    print('Outputs:')
+    print(f"  N_photons from star (powfs.siglev for MAOS config): {Np:.3f}")
+    print(f"  N_photons per pixel from background (powfs.bkgrnd):   {Nb:.3f}")
+    print(f"  SNR:                                   {SNR:.3f}")
+    print(f"  NEA (powfs.nearecon): {sigma_theta:.3f} mas")
+
     return SNR, sigma_theta, Np, Nb
     
-def n_photons(side, time, m, band, ps, throughput):
+def n_photons(side:float, time:float, m:float, band:str, ps:float, 
+              throughput:float):
     """
     Calculate the number of photons from a star and
     background incident on a square area in a given time 
@@ -418,8 +416,8 @@ def n_photons(side, time, m, band, ps, throughput):
     # in (magnitudes arcsec^-2) [1, 2, 3].
     bands = {'name': ["U", "B", "V", "R", "I", "J", "H", "K"],
              'lambd': [0.366, 0.438, 0.545, 0.641, 0.798, 1.22, 1.63, 2.19],
-             'delta_lambd': [0.0665, 0.1037, 0.0909, 0.1479, 0.1042, 0.3268, 0.2607,
-                             0.5569],
+             'delta_lambd': [0.0665, 0.1037, 0.0909, 0.1479, 0.1042, 0.3268, 
+                             0.2607, 0.5569],
              'phi_erg': [417.5, 632, 363.1, 217.7, 112.6, 31.47, 11.38, 3.961],
              'bkg_m': [21.6, 22.3, 21.1, 20.3, 19.2, 14.8, 13.4, 12.6]}
 
@@ -448,7 +446,7 @@ def n_photons(side, time, m, band, ps, throughput):
     
     return n_ph_star, n_ph_bkg
 
-def keck_ttmag_to_itime(ttmag, wfs='strap'):
+def keck_ttmag_to_itime(ttmag:float, wfs:str='strap'):
     """
     Calculate the expected integration time for STRAP given
     a tip-tilt star magnitude in the R-band.
@@ -477,14 +475,14 @@ def keck_ttmag_to_itime(ttmag, wfs='strap'):
     
     return itime
 
-def print_wfe_metrics(directory='./', seed=10):
+def print_wfe_metrics(directory:str='./', seed:int=10):
     """
     Function to print various wave-front error (WFE) metrics 
     to terminal.
 
     Inputs:
     ------------
-    directory      : string, default is current directory
+    directory      : string, default is current working directory
         Path to directory where simulation results live
 
     seed           : int, default=10
@@ -566,7 +564,8 @@ def print_wfe_metrics(directory='./', seed=10):
 
     return open_mean_nm, clos_mean_nm, open_xx_mean_nm, clos_xx_mean_nm
     
-def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
+def print_psf_metrics_x0y0(directory:str='./', oversamp:int=3, 
+                           seed:int=10):
     """
     Print some PSF metrics for a central PSF computed by MAOS
     at an arbitrary number of wavelengths. Closed-loop.
@@ -624,8 +623,7 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
     for pp in range(nwvl):
         psf = psf_all_wvls[pp].data
         hdr = psf_all_wvls[pp].header
-        mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], 
-                                               oversamp=oversamp)
+        mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], oversamp=oversamp)
         wavelengths[pp] = hdr["WVL"] * 1.0e6
         strehl_values[pp] = mets["strehl"]
         fwhm_gaus_values[pp] = mets["emp_fwhm"] * 1.0e3
@@ -642,7 +640,8 @@ def print_psf_metrics_x0y0(directory='./', oversamp=3, seed=10):
     psf_all_wvls.close()
     return wavelengths, strehl_values, fwhm_gaus_values, fwhm_emp_values, r_ee80_values
 
-def print_psf_metrics_open(directory='./', oversamp=3, seed=10):
+def print_psf_metrics_open(directory:str='./', oversamp:int=3, 
+                           seed:int=10):
     """
     Print some PSF metrics for a central PSF computed by MAOS
     at an arbitrary number of wavelengths. Open-loop.
@@ -672,8 +671,7 @@ def print_psf_metrics_open(directory='./', oversamp=3, seed=10):
     for pp in range(nwvl):
         psf = psf_all_wvls[pp].data
         hdr = psf_all_wvls[pp].header
-        mets = metrics.calc_psf_metrics_single(psf, hdr['DP'],
-                                               oversamp=oversamp)
+        mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], oversamp=oversamp)
         sout  = f'{hdr["WVL"]*1e6:10.3f} '
         sout += f'{mets["strehl"]:6.2f} '
         sout += f'{mets["emp_fwhm"]*1e3:10.1f} ' 
@@ -682,10 +680,10 @@ def print_psf_metrics_open(directory='./', oversamp=3, seed=10):
         print(sout)
 
     psf_all_wvls.close()
-
     return
 
-def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
+def get_psf_metrics_over_field(directory:str='./', oversamp:int=3, 
+                               seed:int=10):
     """
     Print some PSF metrics vs. wavelength and field position for PSFs
     computed by MAOS. Closed-loop.
@@ -773,7 +771,7 @@ def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
         
     return xpos, ypos, wavelengths, strehl_values, fwhm_gaus_values, fwhm_emp_values, r_ee50_values, r_ee80_values
 
-def read_maos_psd(psd_input_file, type='jitter'):
+def read_maos_psd(psd_input_file:str, type:str='jitter'):
     """
     Read in a MAOS PSD file and return the frequency and PSD arrays
     with units. Note, there are two types...a "jitter" file usually
@@ -811,7 +809,8 @@ def read_maos_psd(psd_input_file, type='jitter'):
 
     return freq, psd
     
-def psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp):
+def psd_add_vibrations(psd_input_file:str, vib_freq:float, 
+                       vib_jitter_amp:float):
     """
     Take an input temporal power-spectral density (PSD) function in rad^2/Hz
     (as expected for MAOS) and modify it to add a vibration peak with
@@ -856,7 +855,7 @@ def psd_add_vibrations(psd_input_file, vib_freq, vib_jitter_amp):
     psd += vib_model_psd
     return freq, psd
     
-def psd_integrate_sqrt(freq, psd):
+def psd_integrate_sqrt(freq:float, psd:list):
     """
     Function to integrate and take the square root of a PSD to give the total 
     WFE or jitter.
@@ -866,7 +865,7 @@ def psd_integrate_sqrt(freq, psd):
     freq      : float
         Frequency (Hz) array
 
-    psd       : float
+    psd       : 1D array, dtype=float
         Power-spectral density array (rad^2/Hz)
 
     Outputs:
@@ -882,7 +881,8 @@ def psd_integrate_sqrt(freq, psd):
     total_rms = np.sqrt(total_variance)
     return total_rms
 
-def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, verbose:bool=False):
+def calc_strehl(sim_dir:str, out_file:str, skysub:bool=False, 
+                sim_seed=1, apersize=0.6, verbose:bool=False):
     """
     Modified from KAI by Brooke DiGia
     (https://github.com/Keck-DataReductionPipelines/KAI/tree/dev)
@@ -906,7 +906,7 @@ def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, 
         True to perform sky subtraction on PSF. Should be False for MAOS
         PSFs
 
-    aper_size        : float, default = 0.3 arcsec
+    aper_size        : float, default = 0.6 arcsec ** after spot check
         The aperture size over which to calculate the Strehl and FWHM
 
     verbose          : boolean, default = False
@@ -922,6 +922,9 @@ def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, 
 
     rmswfe_to_return : array, len(nwvl), dtype=float
         RMS WFE values at each wavelength
+
+    emp_fwhm_to_return : array, len(nvwl), dtype-float
+        Empirical FWHM (mas)
 
     Function writes to user-specified output text file and prints
     results to terminal
@@ -939,6 +942,7 @@ def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, 
 
     # Get the PSF .fits files from the input simulation directory
     path = f'{sim_dir}evlpsfcl_{sim_seed}_x0_y0.fits'
+    print(path)
     fits_files = glob.glob(path)
     psf_all_wvls = fits.open(fits_files[0])
     nwvl = len(psf_all_wvls)
@@ -949,11 +953,12 @@ def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, 
 
     if verbose:
         print("Lambda (micron) | Strehl | RMS WFE (nm) | FWHM (mas)")
-        print("----------------------------------------------------------------")
+        print("----------------------------------------------------")
 
     strehl_to_return = np.zeros(nwvl)
     fwhm_to_return = np.zeros(nwvl)
     rmswfe_to_return = np.zeros(nwvl)
+    emp_fwhm_to_return = np.zeros(nwvl)
     # Loop over the MAOS PSF stack to calculate metrics
     for i in range(nwvl):
         # Pull current PSF and DL image from stack
@@ -998,12 +1003,13 @@ def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, 
             return
 
         # Calculate Strehl, FWHM, RMS WFE
-        strehl, fwhm, rmswfe = calc_strehl_single(sim_dir, psf, hdr, 
-                                                  radius, skysub, 
-                                                  dl_peak_flux_ratio)
+        strehl, fwhm, rmswfe, emp_fwhm = calc_strehl_single(sim_dir, psf, hdr, 
+                                                            radius, skysub, 
+                                                            dl_peak_flux_ratio)
         strehl_to_return[i] = strehl
         fwhm_to_return[i] = fwhm
         rmswfe_to_return[i] = rmswfe
+        emp_fwhm_to_return[i] = emp_fwhm
 
         _out.write(fmt_dat.format(img=psf_lambda, strehl=strehl, 
                                   rms=rmswfe, fwhm=fwhm))
@@ -1016,9 +1022,11 @@ def calc_strehl(sim_dir, out_file, skysub:bool=False, sim_seed=1, apersize=0.3, 
 
     # Close output file
     _out.close()
-    return strehl_to_return, fwhm_to_return, rmswfe_to_return
+    return strehl_to_return, fwhm_to_return, rmswfe_to_return, emp_fwhm_to_return
 
-def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
+def calc_strehl_single(sim_dir:str, psf:list, hdr:dict, 
+                       radius:float, skysub:bool, 
+                       dl_peak_flux_ratio:float):
     """
     Modified from KAI by Brooke DiGia 
     (https://github.com/Keck-DataReductionPipelines/KAI/tree/dev)
@@ -1028,38 +1036,42 @@ def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
 
     Inputs:
     ----------
-    sim_dir : string 
+    sim_dir  : str
         Simulation directory, output will be stored here
 
-    psf     : array
+    psf      : array
         PSF data
 
-    hdr     : dictionary 
+    hdr      : dictionary 
         FITS header associated with PSF data
 
-    radius  : float
+    radius   : float
         Extraction radius in fitting
 
-    skysub  : boolean 
+    skysub   : boolean 
         True to perform sky subraction on PSF
 
     Outputs:
     ------------
-    strehl  : float
+    strehl   : float
         Calculated Strehl value
 
-    fwhm    : float
+    fwhm     : float
         Full-width at half-maximum of Gaussian fitted to input PSF
 
-    rms_wfe : float
+    rms_wfe  : float
         Root-mean-square wave-front error (nm)
+
+    emp_fwhm : float
+        Empirical FWHM calculated directly from pixels in mas
     """
-    wavelength = hdr["WVL"]*1e6 # microns
-    scale = hdr["DP"]           # arcsec/px
+    wavelength = hdr["WVL"]*1.0e6 # microns
+    scale = hdr["DP"]             # arcsec/px
 
     # Coordinates of Strehl source (MAOS PSFs are output such that the
     # Strehl source is always centered in the image)
     coords = np.array([psf.shape[0]/2.0 , psf.shape[1]/2.0])
+    print(coords)
 
     # First estimate the DL FWHM in pixels. Use this to set the initial boxsize 
     # for the FWHM estimation...note that this is NOT the aperture size 
@@ -1068,9 +1080,11 @@ def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
     # Keck telescope diameter in meters
     telescope_diam = 10.5
     dl_res_in_pix = ( 0.25 * wavelength ) / ( telescope_diam * scale )
-    fwhm_min = 0.9 * dl_res_in_pix
+    print(f"Diffraction-limited resolution [px] = {dl_res_in_pix} | Scale = {scale} arcsec/px")
+    fwhm_min = dl_res_in_pix # 0.9
     fwhm_max = 100.0
     fwhm = 0.0
+    emp_fwhm = 0.0
     fwhm_boxsize = int( np.ceil( ( 4 * dl_res_in_pix ) ) )
     if fwhm_boxsize < 3:
         fwhm_boxsize = 3
@@ -1079,22 +1093,26 @@ def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
     iters = 0
     
     # Steadily increase the boxsize until we get a reasonable FWHM
-    while ( (fwhm < fwhm_min) or (fwhm > fwhm_max) ) and (iters < 30):
+    while ( (fwhm < fwhm_min) or (fwhm > fwhm_max) ) and (iters < 50): # bumped iters up from 30 to 50
         box_scale += iters * 0.1
         iters += 1
         g2d = fit_gaussian2d(psf, coords, fwhm_boxsize * box_scale, 
-                             fwhm_min=0.8 * fwhm_min, fwhm_max=fwhm_max,
+                             fwhm_min=fwhm_min, fwhm_max=fwhm_max,
                              pos_delta_max=pos_delta_max)
         sigma = (g2d.x_stddev_0.value + g2d.y_stddev_0.value) / 2.0
         fwhm = stddev_to_fwhm(sigma)
+        emp_fwhm = empirical_fwhm(psf, scale)
+        print(f"FWHM on iteration {iters} = {fwhm * scale * 1.0e3:.2f} mas | Empirical FWHM on iteration {iters} = {emp_fwhm * 1.0e3} mas")
 
         # Update the coordinates if they are reasonable. 
         if ((np.abs(g2d.x_mean_0.value - coords[0]) < fwhm_boxsize) and
             (np.abs(g2d.y_mean_0.value - coords[1]) < fwhm_boxsize)):
             coords = np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])
+            print(np.array([g2d.x_mean_0.value, g2d.y_mean_0.value]))
 
     # Convert to milli-arcseconds
     fwhm *= scale * 1e3
+    emp_fwhm *= 1.0e3
 
     # Calculate the peak flux ratio
     peak_flux_ratio = calc_peak_flux_ratio(sim_dir, psf, coords, radius, 
@@ -1112,10 +1130,13 @@ def calc_strehl_single(sim_dir, psf, hdr, radius, skysub, dl_peak_flux_ratio):
         strehl = -1.0
         fwhm = -1.0
         rms_wfe = -1.0
+        emp_fwhm = -1.0
 
-    return strehl, fwhm, rms_wfe
+    return strehl, fwhm, rms_wfe, emp_fwhm
 
-def calc_peak_flux_ratio(sim_dir, img, coords, radius, wavelength, skysub:bool):
+def calc_peak_flux_ratio(sim_dir:str, img:list, coords:list, 
+                         radius:int, wavelength:float, 
+                         skysub:bool):
     """
     Modified from KAI by Brooke DiGia for use on MAOS-generated PSFs.
     Function to calculate the ratio of peak flux in the input PSF image
@@ -1124,7 +1145,7 @@ def calc_peak_flux_ratio(sim_dir, img, coords, radius, wavelength, skysub:bool):
 
     Inputs:
     ------------
-    sim_dir         : string
+    sim_dir         : str
         Simulation directory
 
     img             : 2D numpy array
@@ -1176,8 +1197,9 @@ def calc_peak_flux_ratio(sim_dir, img, coords, radius, wavelength, skysub:bool):
     peak_flux_ratio = peak_flux / aper_sum
     return peak_flux_ratio
 
-def fit_gaussian2d(img, coords, boxsize, plot=False, fwhm_min=1.7, 
-                   fwhm_max=30, pos_delta_max=1.7):
+def fit_gaussian2d(img:list, coords:list, boxsize:int, plot:bool=False, 
+                   fwhm_min:float=1.7, fwhm_max:float=30, 
+                   pos_delta_max:float=1.7):
     """
     Calculate the FWHM of an objected located at the pixel
     coordinates in the image. The FWHM will be estimated 
@@ -1210,7 +1232,6 @@ def fit_gaussian2d(img, coords, boxsize, plot=False, fwhm_min=1.7,
     g2d           : Gaussian model object
         2D Gaussian fit
     """
-    print(f"Image shape {img.shape}, coords = {coords}")
     cutout_obj = Cutout2D(img, coords, boxsize, mode='strict')
     cutout = cutout_obj.data
     x1d = np.arange(0, cutout.shape[0])
@@ -1280,8 +1301,37 @@ def fit_gaussian2d(img, coords, boxsize, plot=False, fwhm_min=1.7,
     g2d.y_mean_0 = origin_pos[1]
     
     return g2d
+
+def empirical_fwhm(psf:list, pixel_scale:float):
+    """
+    Function to calculate the FWHM of an image (i.e. PSF) from the image pixel values, 
+    as opposed to a model fit (e.g. Gaussian fit)
+
+    Inputs:
+    -------
+    psf         : 2D array, dtype=float
+        Image data array
+
+    pixel_scale : float
+        Pixel scale (arcsec/px) from FITS image header (on sky or MAOS)
     
-def fwhm_to_stddev(fwhm):
+    Outputs:
+    --------
+    emp_fwhm : float
+        Empirical FWHM in arcsec
+
+    """
+    # Max value (brightest pixel flux) and index
+    max_flux = np.max(psf)
+    half_max = max_flux / 2.0
+    hmi = np.where(psf >= half_max)
+    area_count = len(hmi[0])
+    emp_fwhm = 2.0 * (area_count / np.pi)**0.5
+
+    # Return FWHM in arcsec (use pixel scale to convert from px to arcsec)
+    return emp_fwhm * pixel_scale 
+    
+def fwhm_to_stddev(fwhm:float):
     """
     Function to convert input full-width at half-maximum to standard
     deviation, assuming a Gaussian distribution.
@@ -1299,7 +1349,7 @@ def fwhm_to_stddev(fwhm):
     sigma = fwhm / ( 2.0 * math.sqrt( 2.0 * math.log(2.0) ) )
     return sigma
 
-def stddev_to_fwhm(stddev):
+def stddev_to_fwhm(stddev:float):
     """
     Function to convert input standard deviation to full-width at
     half-maximum, assuming a Gaussian distribution.
@@ -1317,7 +1367,8 @@ def stddev_to_fwhm(stddev):
     fwhm = 2.0 * math.sqrt( 2.0 * math.log(2.0) ) * stddev
     return fwhm 
 
-def fried(DIMM, w_mass, airmass:float, wvl=500.0):
+@u.quantity_input(w_mass=u.m**(1/3))
+def fried(DIMM:u.arcsec, w_mass:list, airmass:float, wvl:u.nm=500.0*u.nm) -> u.m:
     """
     Function to calculate the Fried parameter r0z given the total seeing
     in arcseconds.
@@ -1328,7 +1379,7 @@ def fried(DIMM, w_mass, airmass:float, wvl=500.0):
         DIMM seeing, arcsec 
     
     w_mass  : 1D array, len(6), dtype = float
-        Array of MASS weights
+        Array of MASS weights, [m^(1/3)]
 
     airmass : float
         Airmass (sec(observation angle))
@@ -1339,16 +1390,134 @@ def fried(DIMM, w_mass, airmass:float, wvl=500.0):
     Outputs:
     ------------
     r0z     : float
-        The Fried parameter, r0z, in meters
+        The Fried parameter, r0z, in meters. Currently returning the Roddier/KAON version.
 
     By Brooke DiGia
     """ 
-    r0z1 = 0.98 * ( wvl*1e-9 / arcsec_to_rad(DIMM) )
-    r0z2 = ( 0.423 * ( ( 2.0 * np.pi ) / wvl)**2 * float(airmass) * np.sum(w_mass) )**(-3.0/5.0)
-    print(f"r0z from DIMM = {r0z1} | r0z from MASS discrete integral = {r0z2}")
+    # KAON r0 equation (Roddier 1981's equation, using DIMM measurement as full atm seeing)
+    r0z1 = 0.98 * ( wvl.to(u.m) / arcsec_to_rad(DIMM).to('', equivalencies=u.dimensionless_angles() ))
+
+    # Claire Max and Roddier 1981 definition 
+    # (slightly different prefactors of 0.423 and 2.905/6.88 ~= 0.422 respectively)
+    k = ( 2.0 * np.pi ) / wvl.to(u.m)
+    r0z2 = ( (2.905/6.88) * k**2 * float(airmass) * np.sum(w_mass) )**(-3.0/5.0)
     return r0z1
 
-def arcsec_to_rad(x):
+@u.quantity_input(mass=u.m**(1/3), windspd=u.m/u.s)
+def tau0(dimm:u.arcsec, mass:list, windspd:list, airmass:float, wvl:u.nm=500.0*u.nm) -> u.s:
+    """
+    Function to calculate the atmospheric coherence time tau0
+
+    Inputs:
+    --------
+    dimm        : float
+        Total seeing (arcsec) from DIMM data file
+    
+    mass        : 7-entry 1D array, floats
+        c_l weights from MASS data file. Response from 
+        Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
+        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
+        last element of this array is the total MASS seeing (not a weight),
+        so it is not used in the calculation
+
+        hts = [100.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0] m
+
+    windspd     : array, dtype=float
+        Wind speed profile at heights h 
+
+    airmass     : float
+        Airmass, required for r0 calculation within estimate_turbulence()
+
+    wvl         : float, default = 500
+        Wavelength in nm for which to calculate coherence time. Convention is
+        500 nm
+
+    Outputs:
+    --------
+    tau         : float
+        Atmospheric coherence time tau0 in seconds 
+        (named tau to avoid overloading function name) 
+        as defined by Travouillon et al 2009. See also equation 1 at:
+        https://arxiv.org/pdf/1101.3211
+
+    By Brooke DiGia
+    """
+    # Known heights above telescope (m)
+    hts = np.array([100.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
+    r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl, normalize=False)
+    approx = np.sum(np.multiply(cl, np.abs(windspd)**(5.0/3.0)))
+
+    # Convert nm to m
+    # tau = 0.057 * wvl**(6.0/5.0) * approx**(-3.0/5.0)
+
+    # Calculate tau using second formula 
+    # (Roddier 1981, http://www.eso.org/gen-fac/pubs/astclim/papers/venice2001/venice2001-msarazin.pdf, 
+    # equations 3-4), also in Claire Max's notes equation 5: 
+    # https://www.ucolick.org/~max/289/Assigned%20Readings/Max_Adaptive_Optics_Intro_v1.pdf
+    Vbar = ( approx / np.sum(cl) )**(3.0/5.0)
+    tau2 = 0.31 * ( r0  / Vbar )
+    return tau2
+
+@u.quantity_input(mass=u.m**(1/3))
+def theta0(dimm:u.arcsec, mass:list, airmass:float, wvl:u.nm=500.0*u.nm) -> u.arcsec:
+    """
+    Function to calculate the isoplanatic angle theta0 
+    (http://www.ctio.noirlab.edu/~atokovin/tutorial/part1/turb.html, equation 12)
+
+    See equation 7 of Claire Max's AO notes: 
+    https://www.ucolick.org/~max/289/Assigned%20Readings/Max_Adaptive_Optics_Intro_v1.pdf
+
+    Inputs:
+    --------
+    dimm        : float
+        Total seeing (arcsec) from DIMM data file
+    
+    mass        : 7-entry 1D array, floats
+        c_l weights from MASS data file. Response from 
+        Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
+        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
+        last element of this array is the total MASS seeing (not a weight),
+        so it is not used in the calculation
+
+        hts = [100.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0] m
+
+    airmass     : float
+        Airmass, required for r0 calculation within estimate_turbulence() 
+
+    wvl         : float, default = 500
+        Wavelength at which to calculate angle (nm). Convention is 500 nm
+
+    Outputs:
+    --------
+    theta0      : float
+        Isoplanatic angle in arcsec
+
+    By Brooke DiGia
+    """
+    # Known heights above telescope (m)
+    hts = np.array([100.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0]) * u.m
+    # Calculate Fried param r0 (m) and un-normalized 7-layer turbulence profile
+    # (ground layer + MASS, un-normalized for purpose of calculations of theta0
+    # below)
+    r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl, normalize=False) 
+
+    numerator = np.sum(np.multiply(cl, hts**(5.0/3.0)))
+    denominator = np.sum(cl)
+    hbar = ( numerator / denominator )**(3.0/5.0) # [m]
+    # Claire Max
+    theta_max = 0.314 * ( 1 / airmass ) * ( r0 / hbar )
+
+    # Calculate theta0 using Roddier 1981 
+    # (ref here in equation 7, 
+    # original paper in citations of: 
+    # http://www.eso.org/gen-fac/pubs/astclim/papers/venice2001/venice2001-msarazin.pdf)
+    k = ( 2.0 * np.pi ) / wvl.to(u.m)
+    theta_roddier = ( 2.05 * k**2.0 * airmass**(8.0/3.0) * numerator )**(-3.0/5.0)
+    # print(f"Theta0 Roddier = {theta_roddier.to(u.arcsec, equivalencies=u.dimensionless_angles())} | Theta0 Claire Max = {theta_max.to(u.arcsec, equivalencies=u.dimensionless_angles())}")
+    return theta_roddier.to(u.arcsec, equivalencies=u.dimensionless_angles())
+                            
+@u.quantity_input
+def arcsec_to_rad(x:u.arcsec) -> u.rad:
     """
     Function to convert input quantity from arcseconds to radians.
 
@@ -1364,10 +1533,11 @@ def arcsec_to_rad(x):
 
     By Brooke DiGia
     """
-    return x * (1.0/3600.0) * (math.pi/180.0)
+    return x
 
-def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500, 
-                        normalize=True):
+@u.quantity_input(mass_wts=u.m**(1/3))
+def estimate_turbulence(dimm:u.arcsec, mass_wts:list, airmass:float, date:str=None, 
+                        plot:bool=False, wvl:u.nm=500.0*u.nm, normalize:bool=True):
     """
     Based on equations 16-19 in KAON496:
     https://www.oir.caltech.edu/twiki_oir/pub/Keck/NGAO/NewKAONs/KAON496.pdf
@@ -1385,7 +1555,7 @@ def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500,
         c_l weights from MASS data file. Response from 
         Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
         as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
-        last element of this array is the total MASS seeing (not a weight),
+        last element of this array is the total MASS seeing (not Cn2dh),
         so it is not used in the calculation
 
     date      : string
@@ -1395,7 +1565,7 @@ def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500,
         Option to plot turbulence profile after calculation and save to
         current working directory
 
-    airmass : float
+    airmass   : float
         Airmass (sec(observation angle))
 
     wvl       : float, default = 500 nm
@@ -1418,7 +1588,7 @@ def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500,
     mass_wts = mass_wts[:-1]
     # Calculate Fried parameter and 0th order turbulence moment
     r0 = fried(dimm, mass_wts, airmass, wvl)
-    mu0 = 0.06 * ( wvl*1e-9 )**2.0 * r0**(-5.0/3.0)
+    mu0 = 0.06 * wvl**2.0 * r0**(-5.0/3.0)
 
     c0 = abs(mu0 - np.sum(mass_wts))
     cl = np.zeros(len(mass_wts) + 1)
@@ -1432,7 +1602,8 @@ def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500,
         cl = np.insert(mass_wts, [0], c0)
 
     if plot:
-        hts = np.array([0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
+        hts = np.array([100.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 
+                        16000.0])
         plt.plot(hts, cl, "ro")
         plt.title("Turbulence profile %s" % date)
         plt.ylabel(r"c_{l} coefficients")
@@ -1442,8 +1613,8 @@ def estimate_turbulence(dimm, mass_wts, airmass, date=None, plot=False, wvl=500,
 
     return r0, cl
 
-def fetch_mass_dimm_cfht_loc(dimm_in_hrs, mass_in_hrs, 
-                             cfht_in_hrs, timestamp):
+def fetch_mass_dimm_cfht_loc(dimm_in_hrs:float, mass_in_hrs:float, 
+                             cfht_in_hrs:float, timestamp:float):
     """
     Function to fetch the MASS/DIMM/CFHT data that is closest to 
     the input timestamp.
@@ -1494,7 +1665,7 @@ def fetch_mass_dimm_cfht_loc(dimm_in_hrs, mass_in_hrs,
 
     return dimm_closest_idx, mass_closest_idx, cfht_closest_idx
 
-def remove_keywords(file, *args, verbose:bool=False):
+def remove_keywords(file:str, *args:str, verbose:bool=False):
     """
     Function to remove XSTREHL and YSTREHL keywords from input FITS 
     file headers. E.g. to remove these keywords from the on-sky 
@@ -1532,10 +1703,9 @@ def remove_keywords(file, *args, verbose:bool=False):
 
         # Overwrite original input file with desired changes
         hdu.writeto(file, mode='update')
-            
     return
 
-def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False):
+def estimate_on_sky_conditions(file:str, saveto:str, verbose:bool=False, plot:bool=False):
     """
     Function to take in the path to an on-sky .fits file (containing a PSF)
     and return an estimation of the atmospheric conditions present at the
@@ -1551,10 +1721,10 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
 
     Inputs:
     ------------
-    file                   : string
+    file                   : str
         Path to on-sky FITS file
 
-    saveto                 : string
+    saveto                 : str
         Path of location to save MASS/DIMM data files
 
     verbose                : boolean, default = False
@@ -1905,17 +2075,16 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
                          + ":" + str(cfht_hr[i_cfht_stop]) \
                          + ":" + str(cfht_min[i_cfht_stop])
         
-        # Estimate turbulence for beginning and end of exposure
-        r0_start, start_turb = estimate_turbulence(closest_dimm_start, 
-                                                   mass_profile_start,
+        # Estimate turbulence for beginning and end of exposure (at default wavelength of 500 nm)
+        r0_start, start_turb = estimate_turbulence(closest_dimm_start*u.arcsec, 
+                                                   mass_profile_start*(u.m**(1/3)),
                                                    float(hdr['AIRMASS']),
                                                    date_for_massdimm, 
                                                    plot)
-        r0_end, end_turb = estimate_turbulence(closest_dimm_stop, 
-                                               mass_profile_stop,
-                                               float(hdr['AIRMASS']),
-                                               date_for_massdimm, 
-                                               plot)
+        # r0_end, end_turb = estimate_turbulence(closest_dimm_stop*u.arcsec, 
+        #                                        mass_profile_stop*(u.m**(1/3)),
+        #                                        float(hdr['AIRMASS']),
+        #                                        date_for_massdimm, plot)
 
         # Average CFHT data across exposure to calculate ground layer wind speed
         # and direction
@@ -1938,12 +2107,12 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
                                                      free_atm_wddir) )
         
         # Calculate atmospheric coherence time tau_0 (s)
-        tau_0 = tau0(closest_dimm_start, mass_profile_start[:-1], wind_spd_profile, 
-                     hdr['AIRMASS'])
+        tau_0 = tau0(closest_dimm_start*u.arcsec, mass_profile_start*(u.m**(1/3)), 
+                     wind_spd_profile*(u.m/u.s), hdr['AIRMASS'], wvl=500.0*u.nm)
 
         # Calculate isoplanatic angle theta0
-        theta_0 = theta0(closest_dimm_start, mass_profile_start[:-1], hdr['AIRMASS'], 
-                         np.degrees(np.arccos(1.0/float(hdr['AIRMASS']))))
+        theta_0_roddier = theta0(closest_dimm_start*u.arcsec, mass_profile_start*(u.m**(1/3)), 
+                                 hdr['AIRMASS'], wvl=500.0*u.nm)
         
         if verbose:
             print("Free atm wind speed/direction profiles taken at these heights:", 
@@ -1956,9 +2125,9 @@ def estimate_on_sky_conditions(file, saveto, verbose:bool=False, plot:bool=False
     # exposure
     time_of_dimm = f"{dimm_hr[i_dimm_start]}:{dimm_min[i_dimm_start]}:{dimm_sec[i_dimm_start]}"
     time_of_mass = f"{mass_hr[i_mass_start]}:{mass_min[i_mass_start]}:{mass_sec[i_mass_start]}"
-    return r0_start, start_turb, wind_spd_profile, wind_dir_profile, closest_dimm_start, mass_profile_start[-1], time_of_dimm, time_of_mass, tau_0, theta_0
+    return r0_start, start_turb, wind_spd_profile, wind_dir_profile, closest_dimm_start, mass_profile_start[-1], time_of_dimm, time_of_mass, tau_0, theta_0_roddier
 
-def maos_windshake_grid(amps, on_sky, thres=0.05):
+def maos_windshake_grid(amps:list, on_sky:list, thres:float=0.05):
     """
     Function to run multiple MAOS simulations for a grid search of various
     windshake amplitudes (mas).
@@ -2030,7 +2199,8 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
             sim_dir = base_root + folder + "/"
             print(f"\n\n **** Total Jitter = {amp} mas ****")
             strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, metrics_file, 
-                                                                 skysub=False, apersize=0.3)
+                                                                 skysub=False, 
+                                                                 apersize=0.6)
 
             # Currently comparing to on_sky only at 2.12 microns
             delta_strehl = abs(float(on_sky[i][2]) - strehl_array[-1])
@@ -2048,7 +2218,8 @@ def maos_windshake_grid(amps, on_sky, thres=0.05):
     print(best)
     return best
 
-def maos_phase_screen_grid(r0s, l0s, on_sky, base_root:Path, thres=0.05):
+def maos_phase_screen_grid(r0s:list, l0s:list, on_sky:list, base_root:Path, 
+                           thres:float=0.05):
     """
     Function to test multiple NCPA r0 and l0 parameter values, in comparison
     to an on-sky Strehl quantity (currently hard-coded below). The best 
@@ -2127,7 +2298,7 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, base_root:Path, thres=0.05):
                 strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dir, 
                                                                      metrics_file, 
                                                                      skysub=False, 
-                                                                     apersize=0.3)
+                                                                     apersize=0.6)
                 # Currently comparing to on_sky only at 2.12 microns
                 delta_strehl = abs(float(on_sky[i][2]) - strehl_array[-1])
                 delta_fwhm = abs(float(on_sky[i][3]) - fwhm_array[-1])
@@ -2144,8 +2315,8 @@ def maos_phase_screen_grid(r0s, l0s, on_sky, base_root:Path, thres=0.05):
     print(best)
     return best
 
-def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto, 
-                          file_suffix=".pdf"):
+def maos_comp_to_sky_plot(metric:str, sim_dirs:list, sky_metrics:list, saveto:str, 
+                          file_suffix:str=".pdf"):
     """
     Function to take an array of MAOS simulation results
     and plot the metric results at 2.12 microns versus the 
@@ -2154,10 +2325,10 @@ def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto,
 
     Inputs:
     ----------
-    metric      : string
+    metric      : str
 	Which metric to make the plot for (Strehl or FWHM)
 
-    sim_dirs    : array, variable length, dtype=string
+    sim_dirs    : array, variable length, dtype=str
         Array of MAOS simulation output folder names.
         E.g. "~/base/A_keck_scao_lgs_gc". Don't forget
         the trailing slash! FULL paths
@@ -2166,10 +2337,10 @@ def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto,
 	Array of on-sky Strehl values, to be plotted against
         MAOS Strehls
 
-    saveto      : string
+    saveto      : str
         Location to save plot images
 
-    file_suffix : string, default=".pdf"
+    file_suffix : str, default=".pdf"
         File type for saving plot (PDF or PNG)
 
     Outputs:
@@ -2194,7 +2365,7 @@ def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto,
 
 	# Calculate Strehl + metrics for ith MAOS simulation
         strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dirs[i], metrics_output,
-                                                             skysub=False, apersize=0.3)
+                                                             skysub=False, apersize=0.6)
         
 	# Grab 2.12 micron metric only
         if (metric == "Strehl") or (metric == "strehl"):
@@ -2214,7 +2385,8 @@ def maos_comp_to_sky_plot(metric, sim_dirs, sky_metrics, saveto,
     plt.savefig(saveto + filename + file_suffix)
     return
 
-def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
+def maos_metric_plot(metric:str, sim_dirs:list, saveto:str, nwvl:int=5, 
+                     file_suffix:str=".pdf"):
     """
     Function to parse MAOS simulation results and make a metric 
     (e.g. Strehl/FWHM) vs. wavelength plot for all simulated
@@ -2225,7 +2397,7 @@ def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
 
     Inputs:
     ----------
-    metric      : string
+    metric      : str
 	String identifier for which type of metric to make the plot.
         Valid metrics include: Strehl, FWHM, RMS WFE, and R_EE80
     
@@ -2234,13 +2406,13 @@ def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
         E.g. "~/base/A_keck_scao_lgs_gc". Don't forget
         the trailing slash! FULL paths
 
-    saveto      : string
+    saveto      : str
         Location to save plot images
 
     nwvl        : int
 	Number of wavelengths in each MAOS simulation
 
-    file_suffix : string, default=".pdf"
+    file_suffix : str, default=".pdf"
         File type for saving plot (PDF or PNG)
 
     Outputs:
@@ -2258,7 +2430,7 @@ def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
 
         # Calculate Strehl + metrics for ith MAOS simulation
         strehl_array, fwhm_array, rmswfe_array = calc_strehl(sim_dirs[i], metrics_output,
-                                                             skysub=False, apersize=0.3)
+                                                             skysub=False, apersize=0.6)
 
         # Store metrics
         if (metric == "Strehl") or (metric == "strehl"):
@@ -2287,11 +2459,10 @@ def maos_metric_plot(metric, sim_dirs, saveto, nwvl=5, file_suffix=".pdf"):
     ax.set_title(f"MAOS {metric} as a function of wavelength")
     ax.errorbar(wvls, maos_metrics, yerr=maos_stddevs, fmt="bo", ecolor="black", 
                 capsize=4.0, capthick=2.0)
-    # ax.set_ylim(0.0, 0.6)
     plt.savefig(saveto + filename + file_suffix)
     return
 
-def maos_spreadsheet_lookup(filename, frames=None, dates=None, *args):
+def maos_spreadsheet_lookup(filename:str, frames:list=None, dates:list=None, *args):
     """
     Function to return sky + simulation information in numpy 2D array.
     Due to the identical nature of some of the frame names between 
@@ -2301,7 +2472,7 @@ def maos_spreadsheet_lookup(filename, frames=None, dates=None, *args):
 
     Inputs:
     --------
-    filename : string
+    filename : str
         Path to CSV spreadsheet to read into pandas dataframe object
 
     frames   : array, 1D variable length, dtype=str
@@ -2376,7 +2547,7 @@ def maos_spreadsheet_lookup(filename, frames=None, dates=None, *args):
     
     return df
 
-def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=None, 
+def fetch_sky_frames(seeds:list, skyroot:Path, baseroot:Path, *simtypes:str, dates:list=None, 
                      savecsvto:Path=None, update_maos:bool=False, verbose:bool=False):
     """
     Function to return the on-sky frames and their associated information
@@ -2434,6 +2605,8 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     df           : pandas Dataframe, dtype=variable
         Pandas Dataframe structure containing the sky frames + info for the 
         nights specified (or all)
+
+    By Brooke DiGia
     """  
     if dates != None:
         # User wants select sky frames + info
@@ -2492,9 +2665,6 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     tubetemps = np.empty(namesanddates.shape[0])
     lgsrmswfes = np.empty(namesanddates.shape[0])
     lbwfsfwhms = np.empty(namesanddates.shape[0])
-    dmgains = np.empty(namesanddates.shape[0])
-    ttgains = np.empty(namesanddates.shape[0])
-    wfsgains = np.empty(namesanddates.shape[0])
     tau0s = np.empty(namesanddates.shape[0])
     theta0s = np.empty(namesanddates.shape[0])
 
@@ -2520,13 +2690,11 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         tubetemps[i] = hdr['TUBETEMP'] 
         lgsrmswfes[i] = hdr['LGRMSWF']
         lbwfsfwhms[i] = hdr['AOLBFWHM']
-        dmgains[i] = hdr['DMGAIN']
-        ttgains[i] = hdr['DTGAIN']
-        wfsgains[i] = hdr['GAIN']
  
         # Pull atm/weather info for sky file
-        fried, turbpro, windspds, winddrcts, dimm, mass, dimmtime, masstime, tau_0, theta_0 = estimate_on_sky_conditions(sky_file, sky_folder, verbose)
-        frieds[i] = fried
+        fried, turbpro, windspds, winddrcts, dimm, mass, dimmtime, masstime, tau_0, theta_0 = estimate_on_sky_conditions(sky_file, 
+                                                                                                                         sky_folder, 
+                                                                                                                         verbose)
         dimms[i] = dimm
         masses[i] = mass
         masswts0[i] = turbpro[0]
@@ -2541,12 +2709,13 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         # Store only ground layer speed and direction quantities
         spds[i] = windspds[0]
         drcts[i] = winddrcts[0]
-        tau0s[i] = tau_0
-        theta0s[i] = theta_0
+        # Astropy units attached to these, store only values
+        tau0s[i] = tau_0.value
+        theta0s[i] = theta_0.value
+        frieds[i] = fried.value
    
     # Compute metrics for on-sky frames
     sky_strehls, sky_fwhms, sky_rmswfes = calc_strehl_on_sky(sky_paths, "temp.txt")
-    # Compute metrics for existing corresponding MAOS sims
     # For one type of simulation, use the collect_maos_results function to see if
     # there are on-sky observations for which MAOS sims have not been run. Note:
     # This assumes that if a MAOS sim is missing for an on-sky obs for one type
@@ -2554,10 +2723,7 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     # will be run. To do for Brooke: Change this feature when possible.
     # Arbitrarily choose first simulation type entered.
     for i, type in enumerate(simtypes):
-        maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds, tot_maos_wfes, ho_maos_wfes, tt_maos_wfes = collect_maos_results(seeds, 
-                                                                                                                                                                     namesanddates,
-                                                                                                                                                                     baseroot,
-                                                                                                                                                                     type)
+        maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds, tot_maos_wfes, ho_maos_wfes, tt_maos_wfes, maos_emp_fwhms, maos_emp_fwhm_stds = collect_maos_results(seeds, namesanddates, baseroot, type)
 
     # Run missing MAOS depending on which type of simulation
     missing = np.isnan(maos_strehls)
@@ -2566,7 +2732,6 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         print(namesanddates[missing])
 
     if update_maos:
-        print("Updating MAOS simulations to match on-sky...")
         for i, type in enumerate(simtypes):
             if verbose:
                 print(f"Running {type} MAOS simulations")
@@ -2575,20 +2740,20 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     # Grab newly-calculated MAOS results and store them this time
     maos_strehls_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     maos_fwhms_alltypes = np.empty((len(sky_strehls), len(simtypes)))
+    maos_emp_fwhms_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     maos_rmswfes_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     tot_maos_wfes_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     ho_maos_wfes_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     tt_maos_wfes_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     maos_stddev_strehls_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     maos_stddev_fwhms_alltypes = np.empty((len(sky_strehls), len(simtypes)))
+    maos_stddev_emp_fwhms_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     maos_stddev_rmswfes_alltypes = np.empty((len(sky_strehls), len(simtypes)))
     for i, type in enumerate(simtypes):
-        maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds, tot_maos_wfes, ho_maos_wfes, tt_maos_wfes = collect_maos_results(seeds, 
-                                                                                                                                                                     namesanddates,
-                                                                                                                                                                     baseroot,
-                                                                                                                                                                     type)
+        maos_strehls, maos_strehl_stds, maos_fwhms, maos_fwhm_stds, maos_rmswfes, maos_rmswfe_stds, tot_maos_wfes, ho_maos_wfes, tt_maos_wfes, maos_emp_fwhms, maos_emp_fwhm_stds = collect_maos_results(seeds, namesanddates, baseroot, type)
         maos_strehls_alltypes[:,i] = maos_strehls
         maos_fwhms_alltypes[:,i] = maos_fwhms
+        maos_emp_fwhms_alltypes[:,i] = maos_emp_fwhms
         maos_rmswfes_alltypes[:,i] = maos_rmswfes
         tot_maos_wfes_alltypes[:,i] = tot_maos_wfes
         ho_maos_wfes_alltypes[:,i] = ho_maos_wfes
@@ -2596,27 +2761,39 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
         maos_stddev_fwhms_alltypes[:,i] = maos_fwhm_stds
         maos_stddev_rmswfes_alltypes[:,i] = maos_rmswfe_stds
         maos_stddev_strehls_alltypes[:,i] = maos_strehl_stds
+        maos_stddev_emp_fwhms_alltypes[:,i] = maos_emp_fwhm_stds
 
     # See if telemetry exists for on-sky dates
     _, telem_status = find_on_sky_telemetry_file(datecol, 'LGS')
 
-    out = np.column_stack((namesanddates, mjds, telem_status, expstarts, expstops, airmasses, frieds, tau0s,
+    out = np.column_stack((namesanddates, mjds, telem_status, 
+                           expstarts, expstops, airmasses, 
+                           frieds, tau0s, theta0s,
                            dimms, dimmtimes, 
-                           masses, masstimes, masswts0, masswts500, masswts1000, masswts2000, 
+                           masses, masstimes, 
+                           masswts0, masswts500, masswts1000, masswts2000, 
                            masswts4000, masswts8000, masswts16000, 
-                           spds, drcts, tubetemps, dmgains, ttgains, wfsgains,
+                           spds, drcts, 
+                           tubetemps,
                            sky_strehls, maos_strehls_alltypes, maos_stddev_strehls_alltypes,
-                           sky_fwhms, maos_fwhms_alltypes, maos_stddev_fwhms_alltypes, lbwfsfwhms, 
+                           sky_fwhms, maos_fwhms_alltypes, maos_emp_fwhms_alltypes,
+                           maos_stddev_fwhms_alltypes, maos_stddev_emp_fwhms_alltypes,
+                           lbwfsfwhms, 
                            sky_rmswfes, maos_rmswfes_alltypes, maos_stddev_rmswfes_alltypes, lgsrmswfes,
                            tot_maos_wfes_alltypes, ho_maos_wfes_alltypes, tt_maos_wfes_alltypes))
-    col_list = (['frames', 'dates', 'mjd', 'telem_status', 'expstarts', 'expstops', 'airmasses', 'frieds', 'tau0',
-                'dimms', 'dimmtimes', 'masses', 'masstimes', 'masswts0', 'masswts500', 
-                'masswts1000', 'masswts2000', 'masswts4000', 'masswts8000', 
-                'masswts16000', 'windspds', 'winddirs', 'temps', 'dmgains', 'ttgains',
-                'wfsgains', 'skystrehls'] + [f'maosstrehls-{sim}' for sim in simtypes] + 
+    col_list = (['frames', 'dates', 'mjd', 'telem_status', 
+                 'expstarts', 'expstops', 'airmasses', 
+                 'frieds', 'tau0', 'theta0',
+                 'dimms', 'dimmtimes', 
+                 'masses', 'masstimes', 'masswts0', 'masswts500', 
+                 'masswts1000', 'masswts2000', 'masswts4000', 'masswts8000', 
+                 'masswts16000', 
+                 'windspds', 'winddirs', 
+                 'temps', 
+                 'skystrehls'] + [f'maosstrehls-{sim}' for sim in simtypes] + 
                 [f'maos_stds_strehls-{sim}' for sim in simtypes] + ['skyfwhms']
-                + [f'maosfwhms-{sim}' for sim in simtypes] + 
-                [f'maos_stds_fwhms-{sim}' for sim in simtypes] + 
+                + [f'maosfwhms-{sim}' for sim in simtypes] + [f'maosempfwhms-{sim}' for sim in simtypes] + 
+                [f'maos_stds_fwhms-{sim}' for sim in simtypes] + [f'maos_stds_emp_fwhms-{sim}' for sim in simtypes] +
                 ['lbwfsfwhms', 'skyrmswfes'] + [f'maosrmswfes-{sim}' for sim in simtypes]
                 + [f'maos_stds_rmswfes-{sim}' for sim in simtypes] + ['lgsrmswfes']
                 + [f'totmaoswfe-{sim}' for sim in simtypes] + [f'homaoswfe-{sim}' for sim in simtypes]
@@ -2624,19 +2801,18 @@ def fetch_sky_frames(seeds, skyroot:Path, baseroot:Path, *simtypes, dates:list=N
     df = pd.DataFrame(np.array(out)[1:], columns=col_list)
     
     # User wants to save csv file
-    if savecsvto != None:
-        # Column names that are a bit more descriptive than keywords
-        aliases = ['Frame', 'Date (UT)', 'MJD', 'Telemetry?', 'Expstart (UT)', 'Expstop (UT)', 'Airmass', 'Fried (m)', 'Tau0 (s)', 
-                   'DIMM (\'\')', 'Time of DIMM (HH:MM:SS) (UT)', 'MASS (\'\')', 'Time of MASS (HH:MM:SS) (UT)', 
-                   'MASS wt 0 m', 'MASS wt 500 m', 'MASS wt 1000 m', 'MASS wt 2000 m', 'MASS wt 4000 m', 
-                   'MASS wt 8000 m', 'MASS wt 16000 m', 'Wind spd (m/s)', 'Wind drct (deg)', 'Tube Temp (Celsius)',
-                   'DM Gain', 'TT Gain', 'WFS Gain', 'Sky Strehl', 'MAOS Strehl', 'MAOS Strehl Stddev', 
-                   'Sky FWHM (mas)', 'MAOS FWHM (mas)', 'MAOS FWHM Stddev',
-                   'Telemetry LBWFS Avg FWHM (as)', 'Sky RMS WFE (nm)', 'MAOS RMS WFE (nm)', 'MAOS RMS WFE Stddev',
-                   'Telemetry HO RMS WFE (nm)', 
-                   'MAOS-computed Total WFE (nm)', 'MAOS-computed HO WFE (nm)', 'MAOS-computed TT WFE (nm)']
-        df.to_csv(savecsvto, index=False, header=aliases)
-    
+    # if savecsvto != None:
+    #     # Column names that are a bit more descriptive than keywords
+    #     aliases = ['Frame', 'Date (UT)', 'MJD', 'Telemetry?', 'Expstart (UT)', 'Expstop (UT)', 'Airmass', 'Fried (m)', 'Tau0 (s)', 'Theta0 (\'\')'
+    #                'DIMM (\'\')', 'Time of DIMM (HH:MM:SS) (UT)', 'MASS (\'\')', 'Time of MASS (HH:MM:SS) (UT)', 
+    #                'MASS wt 0 m', 'MASS wt 500 m', 'MASS wt 1000 m', 'MASS wt 2000 m', 'MASS wt 4000 m', 
+    #                'MASS wt 8000 m', 'MASS wt 16000 m', 'Wind spd (m/s)', 'Wind drct (deg)', 'Tube Temp (Celsius)', 'Sky Strehl', 'MAOS Strehl', 'MAOS Strehl Stddev', 
+    #                'Sky FWHM (mas)', 'MAOS FWHM (mas)', 'MAOS FWHM Stddev', 
+    #                'Telemetry LBWFS Avg FWHM (as)', 'Sky RMS WFE (nm)', 'MAOS RMS WFE (nm)', 'MAOS RMS WFE Stddev',
+    #                'Telemetry HO RMS WFE (nm)', 
+    #                'MAOS-computed Total WFE (nm)', 'MAOS-computed HO WFE (nm)', 'MAOS-computed TT WFE (nm)']
+    #     df.to_csv(savecsvto, index=False, header=aliases)
+
     return df
 
 def find_on_sky_telemetry_file(dates:list, telem_type:str, 
@@ -2687,7 +2863,7 @@ def find_on_sky_telemetry_file(dates:list, telem_type:str,
 
     return telem_paths, telem_mask
 
-def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype, 
+def run_maos_comp_to_sky_sim(seeds:list, skyroot:Path, framedates:list, simtype:str, 
                              baseroot:Path):
     """
     Function to run MAOS simulation(s) with config set by a session
@@ -2738,12 +2914,27 @@ def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype,
         hdr_strap_int_time = float(hdr['STINTTIM'])
         # SHWFS frame rate (Hz)
         hdr_shwfs_frame_rate = float(hdr['WSFRRT'])
+        hdr_strap_frame_rate = (1.0/hdr_strap_int_time)*1000.0
+
+        # Set sim_dt to fastest WFS readout rate in Hz
+        if hdr_shwfs_frame_rate > hdr_strap_frame_rate:
+            max_frame_rate = hdr_shwfs_frame_rate
+        else:
+            max_frame_rate = hdr_strap_frame_rate
+
+        sim_dt = 1.0/max_frame_rate
         hdr_shwfs_int_time = (1.0/hdr_shwfs_frame_rate)*1000.0 # ms
-        sim_dt = (1.0/472.0)*1000.0 # ms
-        howfs_dtrat = int(sim_dt / hdr_shwfs_int_time)
-        strap_dtrat = int(sim_dt / hdr_strap_int_time)
+        # sim_dt = (1.0/472.0)*1000.0 # ms
+
+        howfs_dtrat = (sim_dt / hdr_shwfs_int_time)*1000.0
+        strap_dtrat = (sim_dt / hdr_strap_int_time)*1000.0
         # Compose powfs.dtrat array for input into MAOS config command override
-        dtrat = [howfs_dtrat, strap_dtrat, 7080]
+        if howfs_dtrat < 1:
+            howfs_dtrat = 1
+        elif strap_dtrat < 1:
+            strap_dtrat = 1
+        dtrat = [int(howfs_dtrat), int(strap_dtrat), 7080]
+
         # Calculate siglev/bkgrnd/nearecon config parameters using variable
         # integration times from headers
         _, howfs_nearecon, howfs_siglev, howfs_bkgrnd = keck_nea_photons(8.1, 'LGSWFS', 
@@ -2757,14 +2948,16 @@ def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype,
         fried, turbpro, windspds, winddrcts, _, _, _, _, _, _ = estimate_on_sky_conditions(sky_file, 
                                                                                            sky_folder)
         # Size of on-sky image
-        if int(hdr['NAXIS1']) == int(hdr['NAXIS2']):
-            size = int(hdr['NAXIS1'])
-        else:
-            size = min(int(hdr['NAXIS1']), int(hdr['NAXIS2']))
+        # if int(hdr['NAXIS1']) == int(hdr['NAXIS2']):
+        #     size = int(hdr['NAXIS1'])
+        # else:
+        #     size = min(int(hdr['NAXIS1']), int(hdr['NAXIS2']))
 
         # MAOS seems to give weird warnings when input evl.psfsize parameter is odd
-        if size % 2 != 0:
-            size -= 1
+        # if size % 2 != 0:
+        #     size -= 1
+
+        size = 256
         
         mode = ''
         if simtype == 'piston':
@@ -2788,10 +2981,10 @@ def run_maos_comp_to_sky_sim(seeds, skyroot:Path, framedates, simtype,
             if os.getcwd() != baseroot.as_posix():
                 os.chdir(baseroot)
 
-            maos_cmd = f"maos -o A_keck_scao_lgs_gc_{mode}_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf evl.psfsize={size} sim.seeds={seed} evl.wvl={wvl} powfs.dtrat={dtrat} sim.zadeg={angle} powfs.siglev={siglev} powfs.bkgrnd={bkgrnd} powfs.nearecon={nearecon} sim.wspsd={psd_file} atm.r0z={fried} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} surf={surf_cmd} -O"
+            maos_cmd = f"maos -o A_keck_scao_lgs_gc_{mode}_comp_{sky[0]}_seed{seed}_epoch{sky[1]} -c A_keck_scao_lgs_gc.conf evl.psfsize={size} sim.seeds={seed} evl.wvl={wvl} powfs.dtrat={dtrat} sim.zadeg={angle} powfs.siglev={siglev} powfs.bkgrnd={bkgrnd} powfs.nearecon={nearecon} sim.wspsd={psd_file} atm.r0z={fried.value} atm.wt={turbpro} atm.ws={windspds} atm.wddeg={winddrcts} surf={surf_cmd} -O"
             os.system(maos_cmd)
 
-def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
+def collect_maos_results(seeds:list, framedates:list, baseroot:Path, simtype:str):
     """
     Function to collect existing MAOS results for input simulation seeds
     and specified on-sky counterparts and dates. Does not run any new MAOS
@@ -2807,6 +3000,9 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
 
     baseroot     : Path
        Path object for directory from which MAOS sims are run (e.g. MAOS /base/)
+
+    simtype      : string
+       Type of simulation to run (see fetch_sky_frames header for info)
 
     Outputs:
     --------
@@ -2832,6 +3028,8 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
     strehl_stds = []
     fwhms = []
     fwhm_stds = []
+    emp_fwhms = []
+    emp_fwhm_stds = []
     rmswfes = []
     rmswfe_stds = []
     tot_maos_wfes = []
@@ -2841,6 +3039,7 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
     for i in range(framedates.shape[0]):
         strehls_to_avg = []
         fwhms_to_avg = []
+        emp_fwhms_to_avg = []
         rmswfes_to_avg = []
         tot_maos_to_avg = []
         ho_maos_to_avg = []
@@ -2856,7 +3055,10 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
                 folder = baseroot.as_posix() + f"/A_keck_scao_lgs_gc_surf_wfs1_comp_{framedates[i][0]}_seed{seed}_epoch{framedates[i][1]}/"
 
             try:
-                maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes = calc_strehl(folder, out_file, sim_seed=seed)
+                maos_seed_strehls, maos_seed_fwhms, maos_seed_rmswfes, maos_seed_emp_fwhms = calc_strehl(folder, 
+                                                                                                         out_file, 
+                                                                                                         sim_seed=seed, 
+                                                                                                         apersize=0.6) # 0.6 arcsec aperture size from spot check analysis
                 _, maos_cl_metrics, _, _ = print_wfe_metrics(directory=folder, seed=seed)
                 tot_maos_err = maos_cl_metrics[0]
                 tt_maos_err = maos_cl_metrics[1]
@@ -2866,6 +3068,7 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
                 maos_seed_strehls = [np.nan]
                 maos_seed_fwhms = [np.nan]
                 maos_seed_rmswfes = [np.nan]
+                maos_seed_emp_fwhms = [np.nan]
                 tot_maos_err = np.nan
                 tt_maos_err = np.nan
                 ho_maos_err = np.nan
@@ -2873,6 +3076,7 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
             # Store values at 2.12 microns (last values)
             strehls_to_avg.append(maos_seed_strehls[-1])
             fwhms_to_avg.append(maos_seed_fwhms[-1])
+            emp_fwhms_to_avg.append(maos_seed_emp_fwhms[-1])
             rmswfes_to_avg.append(maos_seed_rmswfes[-1])
             tot_maos_to_avg.append(tot_maos_err)
             ho_maos_to_avg.append(ho_maos_err)
@@ -2881,25 +3085,27 @@ def collect_maos_results(seeds, framedates, baseroot:Path, simtype):
         strehl_stds.append(np.std(strehls_to_avg))
         fwhms.append(np.mean(fwhms_to_avg))
         fwhm_stds.append(np.std(fwhms_to_avg))
+        emp_fwhms.append(np.mean(emp_fwhms_to_avg))
+        emp_fwhm_stds.append(np.std(emp_fwhms_to_avg))
         rmswfes.append(np.mean(rmswfes_to_avg))
         rmswfe_stds.append(np.std(rmswfes_to_avg))
         tot_maos_wfes.append(np.mean(tot_maos_to_avg))
         ho_maos_wfes.append(np.mean(ho_maos_to_avg))
         tt_maos_wfes.append(np.mean(tt_maos_to_avg))
 
-    return np.array(strehls), np.array(strehl_stds), np.array(fwhms), np.array(fwhm_stds), np.array(rmswfes), np.array(rmswfe_stds), tot_maos_wfes, ho_maos_wfes, tt_maos_wfes
+    return np.array(strehls), np.array(strehl_stds), np.array(fwhms), np.array(fwhm_stds), np.array(rmswfes), np.array(rmswfe_stds), tot_maos_wfes, ho_maos_wfes, tt_maos_wfes, np.array(emp_fwhms), np.array(emp_fwhm_stds)
 
-def sky_plot(xkey, ykey, pf, colorkeys):
+def sky_plot(xkey:str, ykey:str, pf, colorkeys:dict):
     """
     Function to plot the pandas Dataframe holding the on-sky database
     corresponding to pf['xkey'] and pf['ykey']
 
     Inputs:
     --------
-    xkey : string
+    xkey : str
         Data to plot on the x-axis, pf['xkey']
 
-    ykey : string
+    ykey : str
         Data to plot on the y-axis, pf['ykey']
 
     pf   : pandas Dataframe
@@ -2933,7 +3139,7 @@ def sky_plot(xkey, ykey, pf, colorkeys):
     plot.set_xlabel(f'{xkey}', fontsize=8)
     plot.set_ylabel(f'{ykey}', fontsize=8)
 
-def get_parameter_from_done_conf(directory, param_name):
+def get_parameter_from_done_conf(directory:str, param_name:str):
     """
     Get the parameter value from a maos_done.conf file
     in the specified directory. This is a convenience function
@@ -2998,123 +3204,6 @@ def get_parameter_from_done_conf(directory, param_name):
     file.close()
     return None
 
-def tau0(dimm, mass, windspd, airmass, wvl=500):
-    """
-    Function to calculate the atmospheric coherence time tau0 at zenith
-
-    Inputs:
-    --------
-    dimm        : float
-        Total seeing (arcsec) from DIMM data file
-    
-    mass        : 7-entry 1D array, floats
-        c_l weights from MASS data file. Response from 
-        Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
-        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
-        last element of this array is the total MASS seeing (not a weight),
-        so it is not used in the calculation
-
-        hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0] m
-
-    windspd     : array, dtype=float
-        Wind speed profile at heights h 
-
-    airmass     : float
-        Airmass, required for r0 calculation within estimate_turbulence()
-
-    wvl         : float, default = 500
-        Wavelength in nm for which to calculate coherence time. Convention is
-        500 nm
-
-    Outputs:
-    --------
-    tau         : float
-        Atmospheric coherence time tau0 (named tau to avoid overloading function name) 
-        as defined by Travouillon et al 2009. See also equation 1 at:
-        https://arxiv.org/pdf/1101.3211
-
-    By Brooke DiGia
-    """
-    # Convert nm to m
-    wvl = wvl*1e-9
-
-    # Known heights above telescope (m)
-    hts = np.array([500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
-
-    r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl)
-
-    approx = 0
-    norm = 0
-    # Discretize integral in tau0 analytical equation and sum up terms
-    for i, h in enumerate(hts):
-        approx += cl[i] * np.abs(windspd[i])**(5.0/3.0)
-        norm += cl[i]
-
-    tau = 0.057 * wvl**(6.0/5.0) * approx**(-3.0/5.0)
-
-    # Calculate tau using second formula 
-    # (Roddier 1981, http://www.eso.org/gen-fac/pubs/astclim/papers/venice2001/venice2001-msarazin.pdf, 
-    # equations 3-4)
-    Vbar = ( approx / norm )**(3.0/5.0)
-    tau2 = ( 0.31 * r0 ) / Vbar 
-    print(0.057 * wvl**(6.0/5.0))
-    print(tau2)
-    return tau
-
-def theta0(dimm, mass, airmass, zenith, wvl=500):
-    """
-    Function to calculate the isoplanatic angle theta0 
-    (http://www.ctio.noirlab.edu/~atokovin/tutorial/part1/turb.html, equation 12)
-
-    See equation 7 of Claire Max's AO notes: 
-    https://www.ucolick.org/~max/289/Assigned%20Readings/Max_Adaptive_Optics_Intro_v1.pdf
-
-    Inputs:
-    --------
-    dimm        : float
-        Total seeing (arcsec) from DIMM data file
-    
-    mass        : 7-entry 1D array, floats
-        c_l weights from MASS data file. Response from 
-        Mark Chun verifies that MASS file entries are indeed Cn^2*delta_h,
-        as opposed to pure Cn^2 values. Cn^2*delta_h = c_l. NOTE: the
-        last element of this array is the total MASS seeing (not a weight),
-        so it is not used in the calculation
-
-        hts = [0.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0] m
-
-    airmass     : float
-        Airmass, required for r0 calculation within estimate_turbulence() 
-
-    zenith      : float
-        Zenith angle of observation (zenith at which to calculate theta0)
-
-    wvl         : float, default = 500
-        Wavelength at which to calculate angle (nm). Convention is 500 nm
-
-    Outputs:
-    --------
-    theta0 : float
-        Isoplanatic angle
-
-    By Brooke DiGia
-    """
-    # Known heights above telescope (m)
-    hts = np.array([500.0, 1000.0, 2000.0, 4000.0, 8000.0, 16000.0])
-    r0, cl = estimate_turbulence(dimm, mass, airmass, wvl=wvl)
-
-    numerator = 0
-    denominator = 0
-    for i, h in enumerate(hts):
-        numerator += cl[i] * hts[i]**(5.0/3.0)
-        denominator += cl[i]
-
-    hbar = ( numerator / denominator )**(3.0/5.0)
-    theta0 = 0.314 * np.cos(zenith) * ( r0 / hbar )
-    print(theta0)
-    return theta0
-
-
 def centroid_residual_to_RMSWFE(telem_path:str):
     """
     Function to calculate RMS wave front error from centroid offsets per subaperture from
@@ -3122,7 +3211,7 @@ def centroid_residual_to_RMSWFE(telem_path:str):
 
     Inputs:
     --------
-    telem_path : string
+    telem_path : str
         Path to telemetry file
 
     Outputs:
@@ -3140,6 +3229,9 @@ def centroid_residual_to_RMSWFE(telem_path:str):
     By Brooke DiGia
     """
     data = load_telemetry(telem_path)
+
+    # Before calculating, mask bad acutators
+    bad_ap, bad_act = examine_subapertures(telem_path=telem_path)
       
     # Average over actuators on DM 
     u = np.mean(np.subtract(data.a.dmcommand[0], data.a.residualwavefront[0][:, 0:349]), axis=1)
@@ -3163,7 +3255,7 @@ def shwfs_supapint(telem_path:str):
 
     Inputs:
     --------
-    telem_path     : string
+    telem_path     : str
         Path to telemetry file
 
     Note regarding SUBAPINTENSITY units: 
@@ -3208,7 +3300,7 @@ def strap_flux(telem_path:str):
 
     Inputs:
     -------
-    telem_path     : string
+    telem_path     : str
         Path to telemetry file
 
     Outputs:
@@ -3256,7 +3348,7 @@ def load_telemetry(telem_path:str):
 
     Inputs:
     --------
-    telem_path : string
+    telem_path : str
         Path to telemetry file
 
     Outputs:
@@ -3295,6 +3387,239 @@ def approximate_num_actuators(dmdx:float):
     print(f"Rounding {N_act} to {np.ceil(N_act)}")
     return N_act, np.ceil(N_act)
 
+def check_symmetric(a:list, rtol:float=1e-05, atol:float=1e-08):
+    """
+    Function to check if input 2D list/array is symmetric.
+
+    Inputs:
+    --------
+    a    : list
+        List/array to check
+
+    rtol : float, default=1e-5
+        Relative tolerance parameter
+
+    atol : float, default=1e-8
+        Absolute tolerance parameter
+
+    By Brooke DiGia    
+    """
+    return np.allclose(a, a.T, rtol=rtol, atol=atol)
+
+def load_sub_ap_map(subap_map:str="/Users/bdigia/code/python/paarti/paarti/utils/sub_ap_map.txt"):
+    """
+    Function to load the Keck DM subaperture map and convert it into
+    a Numpy array free of whitespace or other delimiters (e.g. \n).
+
+    Inputs:
+    -------
+    subap_map          : str
+        Path to .txt file of sub aperture map
+
+    Outputs:
+    --------
+    sub_ap_map_cleaned : np.array, dtype=int, [20, 20]
+        Numpy 2D array of sub apertures (1s and 0s)
+
+    By Brooke DiGia
+    """
+    sub_ap_map = open(subap_map, 'r').read().split('\n')[::-1]
+    sub_ap_map = np.array(sub_ap_map[1:])
+    sub_ap_map_cleaned = []
+    for line in sub_ap_map:
+        cleaned = line.split(' ')
+        str_list = list(filter(None, cleaned))
+        sub_ap_map_cleaned.append(str_list)
+    
+    sub_ap_map_cleaned = np.array(sub_ap_map_cleaned)
+    return sub_ap_map_cleaned.astype(int)
+
+def load_act_map(actuator_map:str="/Users/bdigia/code/python/paarti/paarti/utils/actuator_map.txt"):
+    """
+    Function to load the Keck DM actuator map and convert it into
+    a Numpy array free of whitespace or other delimiters (e.g. \n).
+    Analogous to load_sub_ap_map().
+
+    Inputs:
+    -------
+    actuator_map    : str
+        Path to .txt file of actuator map
+
+    Outputs:
+    --------
+    act_map_cleaned : np.array, dtype=int, [21, 21]
+        Numpy 2D array of actuators (1s and 0s)
+
+    By Brooke DiGia
+    """
+    act_map = open(actuator_map, 'r').read().split('\n')[::-1]
+    act_map = np.array(act_map)
+    act_map_cleaned = []
+    for line in act_map:
+        cleaned = line.split(' ')
+        str_list = list(filter(None, cleaned))
+        act_map_cleaned.append(str_list)
+    
+    act_map_cleaned = np.array(act_map_cleaned)
+    return act_map_cleaned.astype(int)
+
+def examine_subapertures(telem_path:str, thres:float=0.3, visualize_dm:bool=True,
+                         subap_map:str="/Users/bdigia/code/python/paarti/paarti/utils/sub_ap_map.txt", 
+                         actuator_map:str="/Users/bdigia/code/python/paarti/paarti/utils/actuator_map.txt"):
+    """
+    Function to evaluate the sub-apertures on a given night/observation/telemetry stream
+    and designate those that are partially illuminated (flux below a threshold from the median)
+
+    Inputs:
+    --------
+    telem_path   : str
+        Path to telemetry file
+
+    thres        : float, default=0.3 (30%)
+        Threshold % for which to designate actuators as partially illuminated 
+
+    visualize_dm : bool, default=True
+        Option to visualize the map of subapertures and actuators, marking which
+        ones will be masked
+
+    subap_map    : str
+        Path to .txt map of Keck DM subapertures
+
+    actuator_map : str
+        Path to .txt map of Keck DM actuators
+
+    Outputs:
+    --------
+    bad_subap    : list, dtype=float
+        List of bad subapertures (in terms of subaperture indexing)
+
+    bad_act      : 2D numpy array, dtype=int
+        Map of bad actuators (actuator mask) on Keck DM
+
+    Displays DM subapertures and actuators, colored by subaperture intensity [adu].
+    Returns indices of bad subapertures and the derived bad actuators. The bad actuators
+    are derived based on: 
+
+    “The valid actuator map is the one that jointly covers the union of the four 
+    valid subaperture map from each of the four LGS channels (as advocated in AD 2).”
+    KAON 1320, KAPA LTAO RTC Algorithm Description, Correia, Surendran, Wizinowich, 
+    Cetre, Ragland, et. al
+
+    By Brooke DiGia
+    """
+    data = load_telemetry(telem_path)
+    med_per_subap = np.median(data.a.subapintensity[0][:,].astype(float), axis=0)
+
+    # Calculate subaperture intensity statistics
+    subapint_std = np.std(data.a.subapintensity[0][:,].astype(float), axis=0)
+    subapint_med = np.median(med_per_subap)
+    subapint_mean = np.mean(data.a.subapintensity[0][:,].astype(float), axis=0)
+    median_flux_timestream = np.median(data.a.subapintensity[0][:,].astype(float), axis=0)
+    print(f"Median SUBAPINTENSITY [adu] = {median_flux_timestream}")
+    print(f"Median SUBAPINTENSITY [adu] = {np.median(median_flux_timestream)}")
+
+    # Find where time averaged intensity of each subaperture is less than
+    # 30% of median value
+    bad_subap = np.where(subapint_mean < thres*subapint_med)[0]
+
+    # Load sub aperture and actuator maps for Keck DM
+    subapmap = load_sub_ap_map().astype(int)
+    actmap = load_act_map().astype(int)
+
+    # Turn sub-apertures off (1 -> 0) in sub aperture map if sub aperture is selected as bad
+    subap_index = -1 # (start at -1 because there is a subaperture labeled 0 itself)
+
+    for row in range(subapmap.shape[0]-1, -1, -1):
+        for col in range(subapmap.shape[1]):
+            # print(subap[row, col])
+            # Track subapertures with special separate index that 
+            # only counts the 1s (subapertures) in the subap map
+            if subapmap[row,col] == 1:
+                subap_index += 1
+                # With subaperture index updated, evaluate subaperture within
+                # ORIGINAL subaperture map
+                if subap_index in bad_subap:
+                    # Turn bad subaperture 'off' by setting it to 0 (it is
+                    # no longer considered a subaperture in union map below)
+                    subapmap[row, col] = 0
+
+    # Pad map with one row and one column of 0s, will be elimated during subsequent logic operations
+    temp = np.c_[subapmap, np.zeros(subapmap.shape[0])]
+    exp = np.r_[temp, [np.zeros(temp.shape[1])]]
+
+    # Find which corresponding actuators need to be masked as well
+    union = np.bitwise_and(actmap, exp.astype(int))
+
+    # Trim off 0 pads post-union
+    bad_act = union[:-1,:-1]
+
+    # Display map with colorbar
+    if visualize_dm:
+        with open(subap_map, 'r') as sub_aperture_map:
+            with open(actuator_map, 'r') as actuator_map:
+                exact_x = []
+                exact_y = []
+                start_y = 0.1
+                act_x = []
+                act_y = []
+                start_act_y = 0.0
+
+                for info in sub_aperture_map.readlines():
+                    start_x = 0.1
+                    line = list(info)
+                    for i in line:
+                        if (i != " ") & (i != '\n'):
+                            if int(i) != 0:
+                                exact_x.append(start_x)
+                                exact_y.append(start_y)
+                            start_x += 0.2
+                    start_y += 0.2
+
+                for info in actuator_map.readlines():
+                    start_x = 0.0
+                    line = list(info)
+                    for i in line:
+                        if (i != " ") & (i != '\n'):
+                            if int(i) != 0:
+                                act_x.append(start_x)
+                                act_y.append(start_act_y)
+                            start_x += 0.2
+                    start_act_y += 0.2
+
+                cmap = mpl.cm.inferno
+                str_txt = [str(i) for i in range(304)]
+                fig, axes = plt.subplots(figsize=(17.5, 15))
+                im = plt.scatter(exact_x, exact_y, label="subaperture", alpha=1.0, 
+                                 c=pd.Series(subapint_mean), cmap=cmap, s=75)
+                axes.set_aspect('equal')
+                fig.colorbar(im, ax=axes, 
+                             label='SUBAPINTENSITY (averaged over timestream) [adu]', 
+                             shrink=0.7)
+                i = 0
+                while i < 304:
+                    if i in bad_subap:
+                        axes.text(exact_x[i], exact_y[i]+0.05, str_txt[i], 
+                                  horizontalalignment='center', fontsize=10, color="red")
+                    else:
+                        axes.text(exact_x[i], exact_y[i]+0.05, str_txt[i], 
+                                  horizontalalignment='center', fontsize=10, color="black")
+                    i += 1
+
+                cbar = plt.gcf()
+                cbar_ax = cbar.axes[-1]
+                cbar_ax.tick_params(labelsize=20)
+                cbar_ax.set_frame_on(True)
+
+                plt.scatter(act_x, act_y, color="grey", label="actuator", alpha=1.0, marker="*", s=50)
+                axes.set_title("Keck DM Subapertures and Actuators, colored by subaperture intensity [adu]", 
+                               fontsize=14)
+                plt.legend()
+                plt.grid(True)
+                plt.tight_layout()
+                plt.show()
+
+    return bad_subap, bad_act
+ 
 def telemetry_data(telem_paths:list=None):
     """
     Function to create Pandas dataframe object from input telemetry files/paths.
@@ -3445,13 +3770,76 @@ def telemetry_data(telem_paths:list=None):
     
     return df
 
+# def plot_telemetry_
+
+# def tt_residual(telem_paths:list=None):
+#     """
+#     Function to calculate the tip-tilt (TT) residual in arcsec
+
+#     Inputs:
+#     -------
+#     telem_paths : array, dtype=str, default=None
+#         Array of input telemetry files for which to collect telemetry into
+#         dataframe. If telem_paths is None (none are input), assume the user
+#         wants all LGS telemetry files loaded and put into dataframe
+
+#     Outputs:
+#     --------
+
+
+#     """
+
+#     if telem_paths == None:
+#         # Fetch names of all 'LGS' telemetry files (takes ~few seconds)
+#         telem_home = Path("/g/lu/data/keck_telemetry/")
+#         paths = [f.as_posix() for f in telem_home.glob(f"*/sdata90*/nirc*/*/n*_LGS_trs.sav")]
+#     else:
+#         paths = telem_paths
+
+#     avg_tt_centroid_x = np.
+#     avg_tt_centroid_y = np.
+#     for i, path in enumerate(paths):
+#         print(f"Telemetry file {i+1} out of {len(paths)} | {path}")
+#         data = load_telemetry(path)
+
+#         # According to KAON 1165 AO Telemetry, DTTCENTROIDS is a measure of the TT 
+#         # residual in arcsec
+#         ttcentroids_x = data.b.dttcentroids[0][:,0]
+#         ttcentroids_y = data.b.dttcentroids[0][:,1]
+
+#         # Measurement source is from laser, not from NGS on TT sensor, hence why it lives in data.a
+#         tt_laser_res = data.a.residualwavefront[0][:, 349:350] 
+#         if i % 500 == 0:
+#             # Plot tip tilt centroid offsets
+#             plt.rcParams.update({"text.usetex": False, "font.sans-serif": "Helvetica",})
+#             fig, axes = plt.subplots(1, 2, figsize=(7.5, 5.0), sharey=True)
+#             axes[0].grid(True)
+#             axes[1].grid(True)
+#             axes[0].plot(data.b.timestamp[0], ttcentroids_x, 'k.-', linewidth=0.5, alpha=0.2)
+#             plt.axhline(y=np.mean(ttcentroids_x), color='cyan', linestyle='--', linewidth=2, label=r"$\bar{\mathtt{residual x tt}}$ arcsec")
+#             axes[0].text(axes[0].get_xlim()[0], np.mean(ttcentroids_x)*1.03, s=f"{np.mean(ttcentroids_x):.3f}", color='cyan')
+
+#             plt.axhline(y=np.mean(ttcentroids_x), color='cyan', linestyle='--', linewidth=2, label=r"$\bar{\mathtt{residual x tt}}$ arcsec")
+#             axes[0].text(axes[0].get_xlim()[0], np.mean(ttcentroids_x)*1.03, s=f"{np.mean(ttcentroids_x):.3f}", color='cyan')
+
+#             axes[1].plot(data.b.timestamp[0], ttcentroids_y, 'k.-', linewidth=0.5, alpha=0.2)
+#             axes[0].set_xlabel(f"Time (ns) \nsince beginning of calendar yr of image")
+#             axes[1].set_xlabel(f"Time (ns) \nsince beginning of calendar yr of image")
+#             axes[0].set_ylabel("TT X residual ('')")
+#             axes[1].set_ylabel("TT Y residual ('')")
+#             axes[0].set_title("X")
+#             axes[1].set_title("Y")
+#             fig.suptitle("Tip-tilt (TT) Residuals (Arcsec)")
+#             plt.tight_layout()
+
+
 """
 The following *_on_sky() functons are copied from the KAI repository, linked
 above in function headers, for use on on-sky PSF images. This is to keep the
 KAI pipeline unchanged in its own repository.
 """
 
-def calc_strehl_on_sky(file_list, out_file, apersize=0.3, 
+def calc_strehl_on_sky(file_list, out_file, apersize=0.6, 
                        instrument=instruments.default_inst,
                        skysub=False):
     """
@@ -3500,7 +3888,7 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
 
     # We are going to assume that everything in this list
     # has the same camera, filter, plate scale, etc.
-    print(file_list[0])
+    # print(file_list[0])
     img0, hdr0 = fits.getdata(file_list[0], header=True)
     filt = instrument.get_filter_name(hdr0)
     scale = instrument.get_plate_scale(hdr0)
@@ -3548,7 +3936,8 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.3,
         for ii in range(len(file_list)):
             strehl, fwhm, rmswfe = calc_strehl_single_on_sky(file_list[ii], radius, 
                                                              dl_peak_flux_ratio, 
-                                                             instrument=instrument, skysub=skysub)
+                                                             instrument=instrument, 
+                                                             skysub=skysub)
             strehls.append(strehl)
             fwhms.append(fwhm)
             rmswfes.append(rmswfe)

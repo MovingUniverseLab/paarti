@@ -8,11 +8,10 @@ from matplotlib import pyplot as plt
 from astropy.nddata import Cutout2D
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry
+from photutils.aperture import CircularAnnulus, aperture_photometry
 from astropy.stats import sigma_clipped_stats
 from photutils.detection import DAOStarFinder
-from astropy.visualization import (MinMaxInterval, SqrtStretch,
-                                   ImageNormalize)
+from astropy.visualization import MinMaxInterval, SqrtStretch, ImageNormalize
 
 # By Brooke DiGia
 
@@ -42,15 +41,19 @@ def fetch_koa(date:str, koa_dir:Path, verbose:bool=False, download:bool=True):
     # Read in query table
     rec = Table.read(koa_dir.as_posix() + f'nirc2_search_{date}.tbl', 
                      format='ipac')
+
     if verbose:
-        print(rec)
-        print(rec['koaimtyp'])
+        # print(rec)
+        # print(rec.keys())
+        # Boolean selection mask
+        new_rec = rec[np.logical_and(rec['koaimtyp'] == 'dark', rec['elaptime'] <= 10.0, rec['sig2nois'] > 20.0)]
+        new_rec.pprint_all()
 
     if download:
         Koa.download(koa_dir.as_posix() + f'nirc2_search_{date}.tbl', 'ipac', \
         koa_dir.as_posix() + f'dnload_dir_nirc2_calib0_{date}', \
-        start_row=0, \
-        end_row=10, \
+        start_row=32, \
+        end_row=42, \
         lev1file=0, \
         calibfile=1, \
         calibdir=1)
@@ -133,7 +136,7 @@ def centroid_koa(koa_img, verbose:bool=True):
     # Calculate statistics on image prior to processing
     _, median, std = sigma_clipped_stats(koa_img, sigma=3.0) 
     # NIRC2/OSIRIS have FWHM of 5 pixels
-    daofind = DAOStarFinder(fwhm=5.0, threshold=median + 30.0*std)
+    daofind = DAOStarFinder(fwhm=5.0, threshold=median + 50.0*std)
     sources = daofind(koa_img)  
     if verbose:
         sources.pprint()
@@ -280,7 +283,7 @@ def load_koa_starlist(starlist:Path):
     By Brooke DiGia
     """
     # Column specifications for starlist, as half-intervals
-    colspecs = [(0, 3), (16, 18), (19, 21), (22, 28), (29, 32), (33, 35), (36, 41), (42, 48), (54, 59), (64, 68), (73, 74)]
+    colspecs = [(0, 3), (16, 18), (19, 21), (22, 28), (29, 32), (33, 35), (36, 41), (42, 48), (55, 59), (64, 68), (73, 74)]
     stardata = pd.read_fwf(starlist, colspecs=colspecs, header=None)
     stardata.columns = ['name', 'RA hh', 'RA mm', 'RA ss.sss', 'DEC +dd', 'DEC mm', 'DEC ss.ss', 'equinox', 'vmag', 'b-v', 'lgsflag']
     return stardata
@@ -305,12 +308,6 @@ def lookup_koa_object(koa_path:Path, starlist:Path):
 
     Outputs:
     --------
-    ra       : float
-        Right ascension (RA) in arcsec
-
-    dec      : float
-        Declination (DEC) in arcsec
-
     mag      : float
         V- or R-band magnitude of engineering star
 
@@ -344,8 +341,6 @@ def lookup_koa_object(koa_path:Path, starlist:Path):
     # Search engstars data for koa_object and pull corresponding
     # RA/DEC and magnitude (V or R band, depending on which is
     # available in starlist)
-    wfs_thetax = np.empty((1, 3))
-    wfs_thetay = np.empty((1, 3))
     mag = 0
     min_diff = np.inf
     min_diff_i = 0
@@ -364,13 +359,7 @@ def lookup_koa_object(koa_path:Path, starlist:Path):
         if diff < min_diff:
             min_diff = diff
             min_diff_i = i
-            # Convert RA and DEC to arcsec via  WFS pixel scale to calculate
-            # wfs.thetax/y = [LGS star TT STRAP star LBWFS star] in arcsec
-            # for MAOS config input
-            # wfs_thetax = 
-            # wfs_thetay = 
+            print(star['vmag'])
             mag = star['vmag']
 
-    return mag, wfs_thetax, wfs_thetay
-
-    
+    return mag
