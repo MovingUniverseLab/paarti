@@ -11,9 +11,9 @@ from astropy import table
 
 from astropy.io import fits
 
-from photutils import CircularAperture
-from photutils import CircularAnnulus
-from photutils import aperture_photometry
+from photutils.aperture import CircularAperture
+from photutils.aperture import CircularAnnulus
+from photutils.aperture import aperture_photometry
 
 import multiprocessing as mp
 
@@ -67,14 +67,19 @@ def calc_psf_metrics(psf_stack, parallel=False, cut_radius=20):
     for pp in range(N_psfs):
         psf = psf_stack.psfs[pp]
 
+        if isinstance(psf_stack.pixel_scale, (list, tuple, np.ndarray)):
+            pixel_scale = psf_stack.pixel_scale[pp]
+        else:
+            pixel_scale = psf_stack.pixel_scale
+
         #####
         # Add calc for this starlist to the pool.
         #####
         if parallel:
             results = pool.apply_async(calc_psf_metrics_single,
-                                       (psf, psf_stack.pixel_scale, cut_radius))
+                                       (psf, pixel_scale, cut_radius))
         else:
-            results = calc_psf_metrics_single(psf, psf_stack.pixel_scale, cut_radius)
+            results = calc_psf_metrics_single(psf, pixel_scale, cut_radius)
             
         results_async.append(results)
 

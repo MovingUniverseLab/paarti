@@ -183,12 +183,12 @@ class MAOS_PSF_all_bands_stack(PSF_stack):
                     n_wvls = len(psfFITS)
                     
                     wavelength = np.empty(n_pos*n_wvls, dtype=float)
+                    pixel_scale = np.empty(n_pos*n_wvls, dtype=float)
                     pos = np.empty([n_pos*n_wvls, 2])
                     psf_x_size = psfFITS[0].data.shape[1]
                     psf_y_size = psfFITS[0].data.shape[0]
                     
                     psfs = np.empty([n_pos*n_wvls, psf_y_size, psf_x_size])
-                    pixel_scale = psfFITS[0].header['dp']
                     first_file = False
 
                 for ww in range(n_wvls):
@@ -197,6 +197,7 @@ class MAOS_PSF_all_bands_stack(PSF_stack):
                     # shape is (y,x). Fastest changing axis (x) is printed last
                     
                     wavelength[i*n_wvls + ww] = header['wvl']*1E9
+                    pixel_scale[i*n_wvls + ww] = header['dp']
                     
                     psfs[i*n_wvls + ww, :, :] = data
                     pos[i*n_wvls + ww, 0] = header['theta'].real

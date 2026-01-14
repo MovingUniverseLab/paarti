@@ -97,7 +97,8 @@ def grid_psf(psf, side=None, zoom=None, scale='log', color='range',
 
 def plot_psf_stack(psf_stack, zoom=None,
                    scale='log', color='range', linthresh=1e-4,
-                   figsize_max=12, box_scale=0.95):
+                   figsize_max=12, box_scale=0.95,
+                   outfile_name='psf_wave.png'):
     """Show a regular square grid of PSFs.
     If the color coverage is 'zero' and the color scale is 'log', a symmetric
     logarithmic colormap normalization is used.
@@ -191,9 +192,9 @@ def plot_psf_stack(psf_stack, zoom=None,
 
     # Setup the boundaries of the PSF boxes (leave room for axis labels).
     plot_box_size = 0.85
-    xlo = 0.1
+    xlo = 0.05
     xhi = xlo + plot_box_size
-    ylo = 0.05
+    ylo = 0.01
     yhi = ylo + plot_box_size
 
     psf_axes_size = (plot_box_size / n_psfs_side) * box_scale
@@ -252,6 +253,8 @@ def plot_psf_stack(psf_stack, zoom=None,
             str = f'FWHM = {fwhm*1e3:.0f} mas\n'
             str += f'ellip = {ellip:.2f}\n'
             str += f'strehl = {strehl*100:.0f}%\n'
+            str += f'xpos = {pos[pp, 0]:.0f}%\n'
+            str += f'ypox = {pos[pp, 1]:.0f}%\n'
             
             ax.text(0.02, 0.98, str,
                     transform=ax.transAxes,
@@ -268,28 +271,28 @@ def plot_psf_stack(psf_stack, zoom=None,
     lab_y_fig += ylo
 
     for xx in range(len(lab_x)):
-        fig.text(lab_x_fig[xx], yhi, f'{lab_x[xx]:5.1f}',
+        fig.text(lab_x_fig[xx], yhi-0.05, f'{lab_x[xx]:5.1f}',
                  ha='center', va='bottom')
     for yy in range(len(lab_y)):
         fig.text(xlo, lab_y_fig[yy], f'{lab_y[yy]:5.1f}',
                  ha='right', va='center', rotation='vertical')
 
-    fig.text(xlo + 0.5 * plot_box_size, 0.95, 'East - West',
+    fig.text(xlo + 0.5 * plot_box_size, 0.93, 'East - West',
              ha='center',
-             weight='bold', fontsize=24)
+             weight='bold', fontsize=20)
     fig.text(0.01, ylo + 0.5 * plot_box_size, 'South - North',
              va='center', rotation='vertical',
-             weight='bold', fontsize=24)
+             weight='bold', fontsize=20)
 
         
-    plt.show(block=False)
-
+    plt.savefig(outfile_name)
     return
 
 
-def plot_psf_stack_xpos_all_wave(psf_stack, xpos, 
+def plot_psf_stack_xpos_all_wave(psf_stack, xpos, ypos=0,
                              zoom=None, scale='log', color='range', linthresh=1e-4,
-                             figsize_max=12, box_scale=0.95):
+                                 figsize_max=12, box_scale=0.95,
+                                 outfile_name='psf_wave.png'):
     """Display a row of PSFs at the desired y position and wavelength. 
 
     Inputs:
@@ -303,6 +306,8 @@ def plot_psf_stack_xpos_all_wave(psf_stack, xpos,
 
     Optional Inputs:
     ----------------
+    ypos: float or None
+        Y position in arcsec.
     zoom: float or None
         Size of PSF box, in arcsec. If 'None', the full PSF is shown.
     scale: str
@@ -317,10 +322,11 @@ def plot_psf_stack_xpos_all_wave(psf_stack, xpos,
     """
 
     # Trim down PSF stack.
-    idx = np.where(psf_stack.pos[:, 0] == xpos)[0]
+    idx = np.where((psf_stack.pos[:, 0] == xpos) & (psf_stack.pos[:, 1] == ypos))[0]
     psfs = psf_stack.psfs[idx]
     pos = psf_stack.pos[idx]
     wavelength = psf_stack.wavelength[idx]
+    pixel_scale = psf_stack.pixel_scale[idx]
 
     if hasattr(psf_stack, 'metrics'):
         metrics = psf_stack.metrics[idx]
@@ -330,10 +336,12 @@ def plot_psf_stack_xpos_all_wave(psf_stack, xpos,
     # Prepare plotting grid
     n = psfs.shape[0]
 
+    # First trim PSFs to the largest they will possibly be.
+    # Right now, PSFs will remain square.
     zoom_px = round(psfs.shape[1] / 2)
     if ((zoom is not None) and
-        ((zoom / psf_stack.pixel_scale) < zoom_px)):
-        zoom_px = np.ceil(zoom / psf_stack.pixel_scale)
+        ((zoom / pixel_scale.min()) < zoom_px)):
+        zoom_px = np.ceil(zoom / pixel_scale.min())
 
     zoom_px_min = (psfs.shape[1] / 2) - zoom_px
     zoom_px_max = (psfs.shape[1] / 2) + zoom_px
@@ -423,28 +431,37 @@ def plot_psf_stack_xpos_all_wave(psf_stack, xpos,
                        cmap=plt.get_cmap(cmap_name), aspect='equal',
                        origin='lower')
 
-        ax.set_xlim([zoom_px_min, zoom_px_max])
-        ax.set_ylim([zoom_px_min, zoom_px_max])
+        # Reset zoom_px for each plate scale.
+        zoom_px_pp = np.ceil(zoom / pixel_scale[pp])
+
+        zoom_px_min_pp = (psfs.shape[1] / 2) - zoom_px_pp
+        zoom_px_max_pp = (psfs.shape[1] / 2) + zoom_px_pp
+        
+        ax.set_xlim([zoom_px_min_pp, zoom_px_max_pp])
+        ax.set_ylim([zoom_px_min_pp, zoom_px_max_pp])
         ax.tick_params(axis='x', bottom=False, labelbottom=False)
         ax.tick_params(axis='y', left=False, labelleft=False)
-        ax.set_xlabel(f'{wavelength[pp]:.0f} nm', fontsize=12)
+        ax.set_xlabel(f'{wavelength[pp]:.0f} nm', fontsize=18)
 
         if pp == 0:
-            ax.set_ylabel(f'{xpos:.0f}"', fontsize=12)
+            boxsize = zoom_px_pp * pixel_scale[pp] * 1e3
+            print(zoom_px_pp, pixel_scale[pp])
+            ax.set_ylabel(f'xpos={xpos:.0f}" \n box={boxsize:.0f} mas',
+                          fontsize=18)
 
         if metrics is not None:
             fwhm = metrics['emp_fwhm'][pp]
             ellip = metrics['ellipticity'][pp]
             strehl = metrics['strehl'][pp]
 
-            str = f'FWHM = {fwhm*1e3:.0f} mas\n'
-            str += f'ellip = {ellip:.2f}\n'
-            str += f'strehl = {strehl*100:.0f}%\n'
+            str = f'FWHM: {fwhm*1e3:.0f} mas\n'
+            str += f'ellip: {ellip:.2f}\n'
+            str += f'strehl: {strehl*100:.0f}%\n'
             
             ax.text(0.02, 0.98, str,
                     transform=ax.transAxes,
                     ha='left', va='top',
-                    fontsize=12)
+                    fontsize=14)
             
 
     # Make the axis labels.
@@ -455,12 +472,12 @@ def plot_psf_stack_xpos_all_wave(psf_stack, xpos,
 
     fig.text(xlo + 0.5 * plot_box_size, 0.05, 'Wavelength',
              ha='center',
-             weight='bold', fontsize=24)
+             weight='bold', fontsize=20)
     fig.text(0.01, ylo + 0.5 * plot_box_size, 'Position',
              va='center', rotation='vertical',
-             weight='bold', fontsize=24)
+             weight='bold', fontsize=20)
 
         
-    plt.show(block=False)
+    plt.savefig(outfile_name)
 
     return

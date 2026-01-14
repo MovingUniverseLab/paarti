@@ -684,7 +684,8 @@ def print_psf_metrics_open(directory='./', oversamp=3, seed=10):
 
     return
 
-def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
+def get_psf_metrics_over_field(directory='./', oversamp=3,
+                               cut_radius=30, seed=10):
     """
     Print some PSF metrics vs. wavelength and field position for PSFs
     computed by MAOS. Closed-loop.
@@ -695,6 +696,8 @@ def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
         Directory where MAOS simulation results live
 
     oversamp         : int, default=3
+
+    cut_radius       : int, default=30 pixels
 
     seed             : int, default=10
         Simulation seed (seed value for which MAOS simulation was run)
@@ -759,7 +762,8 @@ def get_psf_metrics_over_field(directory='./', oversamp=3, seed=10):
             psf = psf_all_wvls[pp].data
             hdr = psf_all_wvls[pp].header
             mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], 
-                                                   oversamp=oversamp)
+                                                   oversamp=oversamp,
+                                                   cut_radius=cut_radius)
             wavelengths[xx, pp] = hdr["WVL"] * 1.0e6
             strehl_values[xx, pp] = mets["strehl"]
             fwhm_gaus_values[xx, pp] = mets["emp_fwhm"] * 1.0e3
