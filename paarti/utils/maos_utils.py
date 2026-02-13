@@ -2131,17 +2131,27 @@ def estimate_on_sky_conditions(file:str, saveto:str, verbose:bool=False, plot:bo
             pass
 
         # Exposure time on this date, parsed into hour, minute, second (UT)
-        expstart = hdr["EXPSTART"]
-        expstop = hdr["EXPSTOP"]
-        if verbose:
-            print("\nDate of observation is  %s (UT)" % date)
-            print("Exposure time is\t%s to %s (UT)\n" % (expstart, expstop))
+        if hdr["CURRINST"] == 'OSIRIS':
+            expstart = hdr['UTC']
+            expstop = hdr['UTC']
+            expstop_sec_old = float(expstop[6:8])
+            expstop_sec_new = expstop_sec_old + hdr['TRUITIME']
+            expstop = expstop[0:6] + f'{expstop_sec_new:.2f}'
+        else: # NIRC2
+            expstart = hdr["EXPSTART"]
+            expstop = hdr["EXPSTOP"]
+            
         expstart_hr = float(expstart[:2])
         expstart_min = float(expstart[3:5])
         expstart_sec = float(expstart[6:8])
         expstop_hr = float(expstop[:2])
         expstop_min = float(expstop[3:5])
         expstop_sec = float(expstop[6:8])
+
+        if verbose:
+            print("\nDate of observation is  %s (UT)" % date)
+            print("Exposure time is\t%s to %s (UT)\n" % (expstart, expstop))
+        
         
         # Load in DIMM data and parse into individual arrays
         dimm_table = read_csv(saveto + dimmdat, delim_whitespace=True, names=\
@@ -4827,3 +4837,85 @@ def calc_peak_flux_ratio_on_sky(img, coords, radius, skysub):
     peak_flux_ratio = peak_flux / aper_sum
     
     return peak_flux_ratio
+
+
+def get_conditions_for_directories(directory_list, save_dimm_dir='./'):
+    """
+    Return a dictionary continiang one QTable for each directory in the
+    input directory list. This table will contain things like MASS/DIMM, etc.
+    (everything from get_atm_conditions).
+    """
+    from astropy import units as u
+    from astropy.table import QTable
+    from astropy.time import Time
+    
+    results_dir = {}
+                   
+    for ll in range(len(directory_list)):
+        cfiles = glob.glob(directory_list[ll] + 'ci*.fits')
+
+        N_files = len(cfiles)
+
+        # Load up the Strehl, FWHM file produced by KAI
+        strehl_tab = Table.read(directory_list[ll] + 'strehl_source.txt', format='ascii')
+
+        for ff in range(len(cfiles)):
+            results = estimate_on_sky_conditions(cfiles[ff], save_dimm_dir)
+
+            if ff == 0:
+                file_names = np.zeros(N_files, dtype='S30')
+                time_mjd = np.zeros(N_files, dtype='float')
+                strehl = np.zeros(N_files, dtype='float')
+                fwhm = np.zeros(N_files, dtype='float')
+                rmswfe = np.zeros(N_files, dtype='float')
+                r0_start = np.zeros(N_files, dtype='float') * u.m
+                start_turb = np.zeros((N_files, len(results[1])), dtype='float')
+                wind_spd_profile = np.zeros((N_files, len(results[2])), dtype='float')
+                wind_dir_profile = np.zeros((N_files, len(results[2])), dtype='float')
+                closest_dimm_start = np.zeros(N_files, dtype='float')
+                mass_profile_start = np.zeros(N_files, dtype='float')
+                time_of_dimm = np.zeros(N_files, dtype='10S')
+                time_of_mass = np.zeros(N_files, dtype='10S')
+                tau_0 = np.zeros(N_files, dtype='float') * u.s
+                theta_0 = np.zeros(N_files, dtype='float') * u.arcsec
+                sigma_DM = np.zeros(N_files, dtype='float') * u.nm
+
+                tab = QTable([file_names, time_mjd, strehl, fwhm, rmswfe,
+                              r0_start, start_turb, wind_spd_profile, wind_dir_profile,
+                             closest_dimm_start, mass_profile_start, time_of_dimm, time_of_mass,
+                             tau_0, theta_0, sigma_DM],
+                            names = ['file', 'time_mjd', 'strehl', 'fwhm', 'rmswfe',
+                                     'r0', 'turb', 'wind_spd_profile', 'wind_dir_profile',
+                                     'dimm', 'mass', 'time_of_dimm', 'time_of_mass', 
+                                     'tau_0', 'theta_0', 'sigma_DM'])
+            
+
+
+            tab['file'][ff] = cfiles[ff].split('/')[-1]
+            tab['r0'][ff] = results[0]
+            tab['turb'][ff] = results[1]
+            tab['wind_spd_profile'][ff] = results[2]
+            tab['wind_dir_profile'][ff] = results[3]
+            tab['dimm'][ff] = results[4]
+            tab['mass'][ff] = results[5]
+            tab['time_of_dimm'][ff] = results[6]
+            tab['time_of_mass'][ff] = results[7]
+            tab['tau_0'][ff] = results[8]
+            tab['theta_0'][ff] = results[9]
+            tab['sigma_DM'][ff] = results[10]
+
+            # Get exposure time in hours
+            hdr = fits.getheader(cfiles[ff])
+            tab['time_mjd'][ff] = hdr['MJD-OBS']
+
+            # Get the Strehl, FWHM, RMSWFE
+            idx = np.where(strehl_tab['Filename'] == tab['file'][ff])[0]
+
+            if len(idx) > 0:
+                tab['strehl'][ff] = strehl_tab['Strehl'][idx[0]]
+                tab['rmswfe'][ff] = strehl_tab['RMSwfe'][idx[0]]
+                tab['fwhm'][ff] = strehl_tab['FWHM'][idx[0]]
+
+        results_dir[directory_list[ll]] = tab
+
+    return results_dir
