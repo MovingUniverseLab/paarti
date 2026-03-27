@@ -1,0 +1,10 @@
+/System/Volumes/Data/mnt/g2/scratch/bdigia/code/python/paarti/paarti/utils/maos -o A_keck_scao_lgs_error_analysis_step2 -c A_keck_scao_lgs_no_twfs.conf sim.closeloop=0 atm.frozenflow=1 powfs.phystep=-1 powfs.noisy=0 surf=[] 
+Output folder is 'A_keck_scao_lgs_error_analysis_step2'.
+SRC: /Users/jlu/code/maos v2.9 35cc6498 2024-02-23 13:26:22 -0800
+BUILT: /Users/jlu/code/maos/bin by GCC (v12.2.0) on 2024/02/23 13:27:27 CPU(F64,+O3) w/o CUDA
+Launched at 2024/08/28 14:01:26 in spray with PID 40022.
+The web based job monitor can be accessed at http://localhost:12291
+Main config file is A_keck_scao_lgs_no_twfs.conf
+Error(readcfg.c:231): Cannot open file A_keck_scao_lgs_no_twfs.conf for reading.
+
+Signal caught: User defined signal 2: 31 (31)

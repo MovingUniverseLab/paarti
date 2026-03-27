@@ -247,28 +247,30 @@ def sky_subtract_koa(koa_img, koa_path:Path, source, r_in, r_out, verbose:bool=T
 
     Inputs:
     -------
-    koa_img : 2D array, dtype=float
+    koa_img     : 2D array, dtype=float
         KOA image data
 
-    koa_path : Path
+    koa_path    : Path
         Path to KOA FITS file to load in
 
-    source  : 1D array of two entries, dtype=float
+    source      : 1D array of two entries, dtype=float
         Coordinates of source (brightest pixel in 
         koa_img)
 
-    r_in    : int
+    r_in        : int
         Inner radius in pixels for sky subtraction annulus
 
-    r_out   : int
+    r_out       : int
         Outer radius in pixels for sky subtraction annulus.
         Must be larger than r_in
 
-    verbose : boolean, default=True
+    verbose     : boolean, default=True
         Option to turn on verbose output
 
     Outputs:
     --------
+    koa_img_sub : 2D array, dtype=float
+        Sky-subtracted KOA image
 
     """
     sky_aperture = CircularAnnulus(source, r_in, r_out)
@@ -278,6 +280,7 @@ def sky_subtract_koa(koa_img, koa_path:Path, source, r_in, r_out, verbose:bool=T
 
     sky_sum = sky_aper_photo['aperture_sum'][0]
     sky_avg = sky_sum/sky_aperture.area
+    print(f"Sky average {sky_avg}, sky sum {sky_sum}, sky_aperture area {sky_aperture.area}")
     koa_img_sub = koa_img - sky_avg
     if verbose:
         print(f"\nAverage pixel value in sky-subtracted KOA: {np.mean(koa_img_sub)}")
@@ -329,7 +332,7 @@ def sky_subtract_koa(koa_img, koa_path:Path, source, r_in, r_out, verbose:bool=T
 
     return koa_img_sub
 
-def clean_koa(koa_path, inner_radius:int=300, outer_radius:int=400):
+def clean_koa(koa_path, inner_radius:int=100, outer_radius:int=180):
     """
     Top-level function for processing KOA images prior to metric
     computation. 
@@ -355,27 +358,26 @@ def clean_koa(koa_path, inner_radius:int=300, outer_radius:int=400):
     """
     # Load in KOA image to process
     img, hdr = load_koa(koa_path)
-
     # Extract sources in image
-    source_coords = centroid_koa(img)
+    source_coords = np.round(centroid_koa(img))
     if source_coords is None:
         print(f"No sources found in KOA file {koa_path}, skip this image.")
         return None
 
-    # Sky-subtract image
-    img_sub = sky_subtract_koa(img, koa_path, source_coords, 
-                               inner_radius, outer_radius)
-
     # Crop image around source
-    cutout_obj = Cutout2D(img_sub, source_coords, [256, 256], mode='trim')
+    cutout_obj = Cutout2D(img, source_coords, [256, 256], mode='trim')
+    # Sky-subtract image
+    source_coords_crop = np.round([cutout_obj.shape[0]/2.0, cutout_obj.shape[1]/2.0])
+    img_sub = sky_subtract_koa(cutout_obj.data, koa_path, source_coords_crop, 
+                               inner_radius, outer_radius)
     # Normalize by integral of entire PSF (as opposed to peak pixel value)
-    cropped_img = cutout_obj.data
-    img_norm = cropped_img/np.sum(cropped_img)
+    img_norm = img_sub/np.sum(img_sub)
+
     # Save normalization constant for each cropped KOA image to track outliers
     # (contributions from hot pixels, cosmic rays, etc.)
     with open('/Users/bdigia/myg3/data/KOA_norm_constants.csv', 'a+') as const_file:
         # Only write if this image's normalization has yet to be recorded
-        to_write = f"{koa_path.name}: {np.sum(cropped_img)}\n"
+        to_write = f"{koa_path.name}: {np.sum(img_norm)}\n"
         lines = const_file.readlines()
         for line in lines:
             if to_write in line:
@@ -388,10 +390,10 @@ def clean_koa(koa_path, inner_radius:int=300, outer_radius:int=400):
             const_file.write(to_write)
 
     fig, axis = plt.subplots(figsize=(5.0, 5.0), layout='constrained')
-    im0 = plt.imshow(cropped_img, cmap="inferno", vmin=0.0)
+    im0 = plt.imshow(img_norm, cmap="inferno", vmin=0.0)
     plt.title(f"Cropped and sky-subtracted {koa_path.name}")
-    plt.xlabel(f"{cropped_img.shape[0]}")
-    plt.ylabel(f"{cropped_img.shape[1]}")
+    plt.xlabel(f"{img_norm.shape[0]}")
+    plt.ylabel(f"{img_norm.shape[1]}")
     cbar0 = plt.colorbar(im0, ax=axis, fraction=0.046, pad=0.04)
     cbar0.minorticks_on()
     plt.show()
@@ -558,7 +560,7 @@ def calc_strehl_on_sky(file_list, apersize=0.6,
         dl_img_file = cal_dir + "brgamma" + '.fits'
     dl_img, dl_hdr = fits.getdata(dl_img_file, header=True)
 
-    # Get the DL image scale and re-scale it to match the science iamge.
+    # Get the DL image scale and re-scale it to match the science image
     if 'Keck' in instrument.telescope:
         scale_dl = 0.009952  # Hard-coded
     else:
@@ -570,18 +572,23 @@ def calc_strehl_on_sky(file_list, apersize=0.6,
 
     # Pick appropriate radii for extraction.
     # The diffraction limited resolution in pixels.
-    dl_res_in_pix = 0.25 * wavelength / (instrument.telescope_diam * scale)
+    dl_res_in_pix = ( 0.25 * wavelength ) / ( instrument.telescope_diam * scale )
+    print(f"DL resolution: {dl_res_in_pix}")
     radius = int(np.ceil(apersize / scale))
     if radius < 3:
         radius = 3
+
+    # Crop DL image to match KOA, prior to sky subtraction below
+    peak_coords_dl = np.unravel_index(np.argmax(dl_img, axis=None), dl_img.shape)
+    cropped_dl_img = Cutout2D(dl_img, peak_coords_dl, [256, 256], mode='trim')
     
     # Perform some wide-aperture photometry on the diffraction-limited image.
     # We will normalize our Strehl by this value. We will do the same on the
-    # data later on.
-    peak_coords_dl = np.unravel_index(np.argmax(dl_img, axis=None), dl_img.shape)
+    # data later on
+
     # Calculate the peak flux ratio
     try:
-        dl_peak_flux_ratio = calc_peak_flux_ratio_on_sky(dl_img, peak_coords_dl, 
+        dl_peak_flux_ratio = calc_peak_flux_ratio_on_sky(cropped_dl_img.data, peak_coords_dl, 
                                                          radius, skysub=True)
         # For each image, get the strehl, FWHM, RMS WFE, MJD, etc. and write to an
         # output file.
@@ -609,8 +616,6 @@ def calc_strehl_on_sky(file_list, apersize=0.6,
 
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
                               skysub, instrument=None):
-
-
     from kai import instruments
     if instrument is None:
         instruments.default_inst    
@@ -618,13 +623,13 @@ def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio,
     # Read in the image and header.
     img, hdr = fits.getdata(img_file, header=True)
     wavelength = instrument.get_central_wavelength(hdr) # microns
-    scale = instrument.get_plate_scale(hdr)
+    scale = instrument.get_plate_scale(hdr) # arcsec/px
 
     hdr, cropped_img = clean_koa(Path(img_file))
 
     # Position of Strehl source (cropping is done but Cutout2D centered on
     # source coords, so automatically we know coords to be center of image)
-    coords = np.array([cropped_img.shape[0]/2.0, cropped_img.shape[1]/2.0])
+    coords = np.round(np.array(([cropped_img.shape[0]/2.0, cropped_img.shape[1]/2.0]))).astype(int)
     
     # Calculate the FWHM using a 2D gaussian fit. We will just average the two.
     # To make this fit more robust, we will change our boxsize around, slowly
@@ -633,7 +638,8 @@ def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio,
     # First estimate the DL FWHM in pixels. Use this to set the boxsize for
     # the FWHM estimation... note that this is NOT the aperture size specified
     # above which is only used for estimating the Strehl.
-    dl_res_in_pix = 0.25 * wavelength / ( instrument.telescope_diam * scale )
+    telescope_diam = 10.5 # meters
+    dl_res_in_pix = ( 0.25 * wavelength ) / ( telescope_diam * scale )
     fwhm_min = dl_res_in_pix # * 0.9
     fwhm_max = 100.0
     fwhm = 0.0
@@ -651,16 +657,16 @@ def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio,
         g2d = mu.fit_gaussian2d(cropped_img, coords, fwhm_boxsize*box_scale,
                              fwhm_min=fwhm_min, fwhm_max=fwhm_max,
                              pos_delta_max=pos_delta_max, plot=True)
+        print(f"maximum of cropped image = {np.max(cropped_img)}")
         sigma = (g2d.x_stddev_0.value + g2d.y_stddev_0.value) / 2.0
         fwhm = mu.stddev_to_fwhm(sigma)
         emp_fwhm = mu.empirical_fwhm(cropped_img, scale)
-
-        # print(f"FWHM on iteration {iters} = {fwhm:.2f} mas | Empirical FWHM on iteration {iters} = {emp_fwhm:.2f} mas")
+        print(f"FWHM on iteration {iters} = {fwhm * scale * 1e3:.2f} mas | Empirical FWHM on iteration {iters} = {emp_fwhm*1.0e3:.2f} mas")
 
         # Update the coordinates if they are reasonable. 
         if ((np.abs(g2d.x_mean_0.value - coords[0]) < fwhm_boxsize) and
             (np.abs(g2d.y_mean_0.value - coords[1]) < fwhm_boxsize)):
-            coords = np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])
+            coords = np.round(np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])).astype(int)
 
     # Convert to milli-arcseconds
     fwhm *= scale * 1e3
@@ -678,6 +684,7 @@ def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio,
     print('peak flux ratio = ', peak_flux_ratio, ' dl peak flux ratio = ', dl_peak_flux_ratio)
 
     # Convert the Strehl to a RMS WFE using the Marechal approximation.
+    print(f"Strehl {strehl}, wavelength {wavelength}")
     rms_wfe = np.sqrt( -1.0 * np.log(strehl)) * wavelength * 1.0e3 / (2. * np.pi)
     
     # Check final values and fail gracefully.
@@ -705,25 +712,35 @@ def calc_peak_flux_ratio_on_sky(img, coords, radius, skysub):
         Option to perform sky subtraction.
 
     """
-    # Determine the peak flux
-    peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
-                                             img.data.shape)
-    peak_flux = img[peak_coords]
+    # # Determine the peak flux
+    # peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
+    #                                          img.data.shape)
+    peak_flux = img[coords[0], coords[1]]
+    if skysub == True:
+        print(f"DL peak flux = {peak_flux}")
+    else:
+        print(f"Peak flux = {peak_flux}")
     
     # Calculate the Strehl by first finding the peak-pixel flux / wide-aperture flux.
     # Then normalize by the same thing from the reference DL image. 
     aper_sum = np.sum(img)
 
     if skysub: # should not be turned on for KOA images, only DL images
-        sky_rad_inn = radius + 20
-        sky_rad_out = radius + 30
-        sky_aper = CircularAnnulus(coords, sky_rad_inn, sky_rad_out)
-        sky_aper_out = aperture_photometry(img, sky_aper)
-        sky_aper_sum = sky_aper_out['aperture_sum'][0]
+        sky_rad_inn = 300
+        sky_rad_out = 400
+        sky_aperture = CircularAnnulus(coords, sky_rad_inn, sky_rad_out)
+        sky_aper_photo = aperture_photometry(img, sky_aperture)
 
-        aper_sum -= sky_aper_sum
+        sky_sum = sky_aper_photo['aperture_sum'][0]
+        sky_avg = sky_sum/sky_aperture.area
+        img_sub = img - sky_avg
 
-    # Calculate the peak pixel flux / wide-aperture flux
-    peak_flux_ratio = peak_flux / aper_sum
+        # Normalize by integral of entire PSF (as opposed to peak pixel value)
+        img_norm = img_sub/np.sum(img_sub)
+        peak_flux_ratio = img_sub[coords[0], coords[1]] / np.sum(img_sub)
+    else: 
+        # Calculate the peak pixel flux / wide-aperture flux in case of no skysub
+        print(f"aper sum {aper_sum}, peak flux {peak_flux}")
+        peak_flux_ratio = peak_flux / aper_sum
     
     return peak_flux_ratio

@@ -176,11 +176,10 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         
         # KAON 479 has CCD-39 3.0 arcsec square pixels 
         ps = 3.0
-        # e-/pixel readout noise (Marcos van Dam and Bruce McIntosh - Performance of Keck AO system)
-        sigma_e = 3.6 # try KAON 387 value since measurements seemed closer (frame rate)
+        # e-/pixel readout noise (Marcos van Dam and Bruce McIntosh - Performance of Keck AO system - they get 6.5 e-)
+        sigma_e = 3.6 # try KAON 387 value since measurements seemed closer in time and to frame rate used for measurement
         
-        # from KAON 1303 Table 20 (1.5'' hard-coded for LGS spot size, no
-        # need for Gaussian convolution)
+        # from KAON 1303 Table 20
         theta_beta = 1.93 * ( math.pi/180.0 ) / ( 60.0*60.0 ) # KAON 1317 gives 1.933 FWHM spot size from adding in quadrature the seeing disk, lenslet spot size and diffraction spot
         
         # KAON 1303 Table 7 states 0.36, but Np=1000 is already
@@ -280,15 +279,15 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         # 2014 Wizinowich paper
         # has pixel size = 1.4 '' for STRAP in Table 1
         ps = 1.4 # changed from 1.3, which I couldn't verify from original comment (from KAON 1322, just above equation 19)
-        sigma_e = 0.0
+        sigma_e = 0.0 # APDs should have 0 readnoise (KAON 051 corroborates)
 
         # There appears to be inconsistencies in that KAON 1322 Section 7.6
         # which quotes 3000 photons/aperture/frame (not sure what 
         # brightness star this would be for). Maybe GC R=15?
         
         # B.DiGia 12/13/2024 - changed spot size calculation
-        # to account for intrinsic theta (0.625) convolved
-        # with seeing-limited disk theta_r0
+        # to account for intrinsic theta (0.625, extrapolated from KAON 422 Fig. 5) 
+        # convolved with seeing-limited disk theta_r0
         theta_r0 = seeing_limit_spot_size(band_wvl, r0)
         theta_beta = np.sqrt(theta_r0**2.0 + 0.625**2.0)
         # Convert spot size to radians
@@ -958,7 +957,7 @@ def psd_integrate_sqrt(freq:float, psd:list):
     total_rms = np.sqrt(total_variance)
     return total_rms
 
-def calc_strehl(sim_dir:str, out_file:str, skysub:bool=False, 
+def calc_strehl(sim_dir:str, out_file:str, 
                 sim_seed=1, apersize=0.6, verbose:bool=False):
     """
     Modified from KAI by Brooke DiGia
@@ -1019,7 +1018,6 @@ def calc_strehl(sim_dir:str, out_file:str, skysub:bool=False,
 
     # Get the PSF .fits files from the input simulation directory
     path = f'{sim_dir}evlpsfcl_{sim_seed}_x0_y0.fits'
-    print(path)
     fits_files = glob.glob(path)
     psf_all_wvls = fits.open(fits_files[0])
     nwvl = len(psf_all_wvls)
@@ -1045,11 +1043,11 @@ def calc_strehl(sim_dir:str, out_file:str, skysub:bool=False,
         dl_hdr = dl_all_wvls[i].header
 
         # DL wavelength (microns) and pixel scale (arcsec/px)
-        dl_lambda = dl_hdr["WVL"]*1e6
+        dl_lambda = dl_hdr["WVL"]*1.0e6
         scale = dl_hdr["DP"]
 
         # PSF wavelength (microns)
-        psf_lambda = hdr["WVL"]*1e6
+        psf_lambda = hdr["WVL"]*1.0e6
 
         # Check that DL wavelength and PSF wavelength are matched
         if dl_lambda != psf_lambda:
@@ -1073,15 +1071,16 @@ def calc_strehl(sim_dir:str, out_file:str, skysub:bool=False,
             dl_peak_flux_ratio = calc_peak_flux_ratio(sim_dir, dl_img, 
                                                       peak_coords_dl, 
                                                       radius, dl_lambda, 
-                                                      skysub)
+                                                      skysub=True)
         except astropy.nddata.PartialOverlapError:
             print("astropy.nddata.PartialOverlapError")
             _out.close()
             return
 
         # Calculate Strehl, FWHM, RMS WFE
+        skysub_for_img = True # sky subtraction flag on for non-DL images (i.e. MAOS psfs)
         strehl, fwhm, rmswfe, emp_fwhm = calc_strehl_single(sim_dir, psf, hdr, 
-                                                            radius, skysub, 
+                                                            radius, skysub_for_img, 
                                                             dl_peak_flux_ratio)
 
         # mets = metrics.calc_psf_metrics_single(psf, hdr['DP'], oversamp=1) # default oversamp value is 3
@@ -1147,18 +1146,17 @@ def calc_strehl_single(sim_dir:str, psf:list, hdr:dict,
     """
     wavelength = hdr["WVL"]*1.0e6 # microns
     scale = hdr["DP"]             # arcsec/px
-
+    
     # Coordinates of Strehl source (MAOS PSFs are output such that the
     # Strehl source is always centered in the image)
-    coords = np.array([psf.shape[0]/2.0 , psf.shape[1]/2.0])
+    coords = np.round(np.array([psf.shape[0]/2.0 , psf.shape[1]/2.0])).astype(int)
 
     # First estimate the DL FWHM in pixels. Use this to set the initial boxsize 
     # for the FWHM estimation...note that this is NOT the aperture size 
     # specified above, which is only used for estimating the Strehl:
     
     # Keck telescope diameter in meters
-    telescope_diam = 10.5
-    dl_res_in_pix = ( 0.25 * wavelength ) / ( telescope_diam * scale )
+    dl_res_in_pix = ( 0.25 * wavelength ) / ( instruments.default_inst.telescope_diam * scale )
     print(f"Diffraction-limited resolution [px] = {dl_res_in_pix} | Scale = {scale} arcsec/px")
     fwhm_min = dl_res_in_pix # 0.9
     fwhm_max = 100.0
@@ -1167,7 +1165,7 @@ def calc_strehl_single(sim_dir:str, psf:list, hdr:dict,
     fwhm_boxsize = int( np.ceil( ( 4 * dl_res_in_pix ) ) )
     if fwhm_boxsize < 3:
         fwhm_boxsize = 3
-    pos_delta_max = 2 * fwhm_min
+    pos_delta_max = 2.0 * fwhm_min
     box_scale = 1.0
     iters = 0
     
@@ -1186,8 +1184,7 @@ def calc_strehl_single(sim_dir:str, psf:list, hdr:dict,
         # Update the coordinates if they are reasonable. 
         if ((np.abs(g2d.x_mean_0.value - coords[0]) < fwhm_boxsize) and
             (np.abs(g2d.y_mean_0.value - coords[1]) < fwhm_boxsize)):
-            coords = np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])
-            print(np.array([g2d.x_mean_0.value, g2d.y_mean_0.value]))
+            coords = np.round(np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])).astype(int)
 
     # Convert to milli-arcseconds
     fwhm *= scale * 1e3
@@ -1209,7 +1206,6 @@ def calc_strehl_single(sim_dir:str, psf:list, hdr:dict,
     # Check final values and fail gracefully.
     if ((strehl < 0) or (strehl > 1) or
         (fwhm > 500) or (fwhm < (fwhm_min * scale * 1e3))):
-        
         strehl = -1.0
         fwhm = -1.0
         rms_wfe = -1.0
@@ -1253,9 +1249,13 @@ def calc_peak_flux_ratio(sim_dir:str, img:list, coords:list,
         Peak flux ratio
     """
     # Determine the peak flux
-    peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
-                                             img.data.shape)
-    peak_flux = img[peak_coords]
+    # peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
+    #                                          img.data.shape)
+    peak_flux = img[coords[0], coords[1]]
+    if skysub == True:
+        print(f"DL peak flux = {peak_flux}")
+    else:
+        print(f"Peak flux = {peak_flux}")
     
     # Calculate the Strehl by first finding the peak-pixel flux / 
     # wide-aperture flux. Then normalize by the same thing from 
@@ -1263,21 +1263,25 @@ def calc_peak_flux_ratio(sim_dir:str, img:list, coords:list,
     aper_sum = np.sum(img)
 
     if skysub:
-        sky_rad_inn = radius + 20
-        sky_rad_out = radius + 30
+        sky_rad_inn = 300
+        sky_rad_out = 400
         sky_aper = CircularAnnulus(coords, sky_rad_inn, sky_rad_out)
         sky_aper_out = aperture_photometry(img, sky_aper)
         sky_aper_sum = sky_aper_out['aperture_sum'][0]
 
         aper_sum -= sky_aper_sum
-        plt.imshow(img, aspect="auto")
-        annulus_patches = sky_aper.plot(color="red", label="Annulus")
-        plt.title("MAOS PSF at %0.2f microns" % wavelength)
-        plt.savefig("%s/PSF_annuli_%0.2f_microns.pdf" % 
-                    (sim_dir, wavelength))
+        sky_sum = sky_aper_out['aperture_sum'][0]
+        sky_avg = sky_sum/sky_aper.area
+        img_sub = img - sky_avg
 
-    # Calculate the peak pixel flux / wide-aperture flux
-    peak_flux_ratio = peak_flux / aper_sum
+        # Normalize by integral of entire PSF (as opposed to peak pixel value)
+        img_norm = img_sub/np.sum(img_sub)
+        peak_flux_ratio = img_sub[coords[0], coords[1]] / np.sum(img_sub)
+    else:
+        # Calculate the peak pixel flux / wide-aperture flux in case of no skysub
+        print(f"aper sum {aper_sum}, peak flux {peak_flux}")
+        peak_flux_ratio = peak_flux / aper_sum
+
     return peak_flux_ratio
 
 def fit_gaussian2d(img:list, coords:list, boxsize:int, plot:bool=False, 
@@ -1320,6 +1324,8 @@ def fit_gaussian2d(img:list, coords:list, boxsize:int, plot:bool=False,
     x1d = np.arange(0, cutout.shape[0])
     y1d = np.arange(0, cutout.shape[1])
     x2d, y2d = np.meshgrid(x1d, y1d)
+    print(f"maximum of img within fit_gaussian2d() = {np.max(img)}")
+    print(f"maximum of cutout within fit_gaussian2d() = {np.max(cutout)}")
     
     # Setup our model with some initial guess
     x_init = boxsize/2.0
@@ -1355,13 +1361,13 @@ def fit_gaussian2d(img:list, coords:list, boxsize:int, plot:bool=False,
         plt.clf()
         plt.subplots_adjust(left=0.05, wspace=0.3)
         plt.subplot(1, 3, 1)
-        plt.imshow(cutout, vmin=mod_img.min(), vmax=mod_img.max(),
+        plt.imshow(cutout, vmin=cutout.min(), vmax=cutout.max(),
                    origin='lower')
         plt.colorbar()
         plt.title("Original")
         
         plt.subplot(1, 3, 2)
-        plt.imshow(mod_img, vmin=mod_img.min(), vmax=mod_img.max(),
+        plt.imshow(mod_img, vmin=cutout.min(), vmax=cutout.max(),
                    origin='lower')
         plt.colorbar()
         plt.title("Model")
@@ -3158,6 +3164,7 @@ def run_maos_comp_to_sky_sim(seeds:list, skyroot:Path, framedates:list, simtype:
 
     Outputs:
     --------
+    None, runs simulations, which are saved in directory folders.
     
     By Brooke DiGia
     """  
@@ -3207,9 +3214,37 @@ def run_maos_comp_to_sky_sim(seeds:list, skyroot:Path, framedates:list, simtype:
                                                                          hdr_shwfs_int_time/1000.0)
         _, strap_nearecon, strap_siglev, strap_bkgrnd = keck_nea_photons(14.0, 'STRAP', 
                                                                          hdr_strap_int_time/1000.0)
-        nearecon = [howfs_nearecon, strap_nearecon, 8.4]
-        siglev = [howfs_siglev, strap_siglev, 3723]
-        bkgrnd = [howfs_bkgrnd, strap_bkgrnd, 25.3]
+        _, lbwfs_nearecon, lbwfs_siglev, lbwfs_bkgrnd = keck_nea_photons(14.0, 'LBWFS', 15.0) # LBWFS integration time assumed to be 15 seconds
+    
+        # If AO LBWFS average spot size (average FWHM) keyword present in header, use this for spot size
+        # and redo keck_nea_photons associated calculations for LBWFS
+        if 'AOLBFWHM' in hdr:
+            band = "R"
+            side = 0.563 
+            ps = 0.148
+            sigma_e = 7.96
+            theta_beta = float(hdr['AOLBFWHM'])
+            # Convert header spot size to radians
+            theta_beta *= ( math.pi/180.0 ) / ( 60.0*60.0 )
+            throughput = 0.03
+            pix_per_ap = 16.7*16.7
+            m = 14
+            time = 15
+            # Calculate number of photons and background photons
+            LBWFS_Np, LBWFS_Nb = n_photons(side, time, m, band, ps, throughput)
+            # Calculate SNR
+            SNR = LBWFS_Np / np.sqrt(LBWFS_Np + pix_per_ap*LBWFS_Nb + pix_per_ap*sigma_e**2)
+            # Noise equivalent angle in milliarcseconds (eq 65)
+            LBWFS_sigma_theta = theta_beta/SNR  * ( 180.0/math.pi ) * 60.0 * 60.0 * 1000.0
+
+            nearecon = [howfs_nearecon, strap_nearecon, LBWFS_sigma_theta]
+            siglev = [howfs_siglev, strap_siglev, LBWFS_Np]
+            bkgrnd = [howfs_bkgrnd, strap_bkgrnd, LBWFS_Nb]
+        else:
+            nearecon = [howfs_nearecon, strap_nearecon, lbwfs_nearecon]
+            siglev = [howfs_siglev, strap_siglev, lbwfs_siglev]
+            bkgrnd = [howfs_bkgrnd, strap_bkgrnd, lbwfs_bkgrnd]
+
         # Calculate atm parameters
         fried, turbpro, windspds, winddrcts, _, _, _, _, _, _ = estimate_on_sky_conditions(sky_file, 
                                                                                            sky_folder)
@@ -3224,7 +3259,6 @@ def run_maos_comp_to_sky_sim(seeds:list, skyroot:Path, framedates:list, simtype:
         #     size -= 1
 
         size = 256
-        
         mode = ''
         if simtype == 'piston':
             mode = 'piston'
@@ -3233,11 +3267,18 @@ def run_maos_comp_to_sky_sim(seeds:list, skyroot:Path, framedates:list, simtype:
             psd_file = ''
         elif simtype == 'psd+ncpa-seen':
             mode = 'surf_wfs1'
-            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.36;l0=3.39;ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"]
+            # Revert NCPA surf back to Lianqi's default since tuned version is now extremely out of date/based on
+            # parameters that have been significantly changed
+
+            # surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.36;l0=3.39;ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"]
+            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.1;l0=10;ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"]
             psd_file = "PSD_Keck_ws26.47mas_vib26mas_rad2.fits"
         elif simtype == 'psd+ncpa-unseen':
             mode = 'surf_wfs0'
-            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.36;l0=3.39;ht=40000;slope=-2; SURFWFS=0; SURFEVL=1; seed=10;'"]
+            # Revert NCPA surf back to Lianqi's default since tuned version is now extremely out of date/based on
+            # parameters that have been significantly changed
+            # surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.36;l0=3.39;ht=40000;slope=-2; SURFWFS=0; SURFEVL=1; seed=10;'"]
+            surf_cmd = ["Keck_ncpa_rmswfe130nm.fits", "'r0=0.1;l0=10;ht=40000;slope=-2; SURFWFS=1; SURFEVL=1; seed=10;'"]
             psd_file = "PSD_Keck_ws26.47mas_vib26mas_rad2.fits"
         else:
             raise ValueError(f"Invalid MAOS simulation type '{type}'. Valid types are currently: 'piston', 'psd+ncpa-seen', 'psd+ncpa-unseen'. See help() for further info")
@@ -3742,7 +3783,15 @@ def load_act_map(actuator_map:str="/Users/bdigia/code/python/paarti/paarti/utils
     act_map_cleaned = np.array(act_map_cleaned)
     return act_map_cleaned.astype(int)
 
-def examine_subapertures(telem_path:str, thres:float=0.3, visualize_dm:bool=True,
+def load_act_to_subap_map(actuator_subap_map:str="/Users/bdigia/code/python/paarti/paarti/utils/actuator_subap (1).mat"):
+    """
+    By Brooke DiGia
+    """
+    print(np.fromfile(actuator_subap_map, dtype=">i1"))
+    actuator_to_subap = np.fromfile(actuator_subap_map, dtype=">i1").reshape((349, 304))
+    return actuator_to_subap.astype(int)
+
+def examine_subapertures(telem_path:str, thres:float=0.5, visualize_dm:bool=True,
                          subap_map:str="/Users/bdigia/code/python/paarti/paarti/utils/sub_ap_map.txt", 
                          actuator_map:str="/Users/bdigia/code/python/paarti/paarti/utils/actuator_map.txt"):
     """
@@ -3798,16 +3847,18 @@ def examine_subapertures(telem_path:str, thres:float=0.3, visualize_dm:bool=True
     # print(f"Median SUBAPINTENSITY [adu] = {np.median(median_flux_timestream)}")
 
     # Find where time averaged intensity of each subaperture is less than
-    # 30% of median value
+    # 50% of median value
     bad_subap = np.where(subapint_mean < thres*subapint_med)[0]
 
     # Load sub aperture and actuator maps for Keck DM
     subapmap = load_sub_ap_map().astype(int)
     actmap = load_act_map().astype(int)
+    act_to_subap = load_act_to_subap_map()
 
     # Turn sub-apertures off (1 -> 0) in sub aperture map if sub aperture is selected as bad
     subap_index = -1 # (start at -1 because there is a subaperture labeled 0 itself)
 
+    bad_subap_1d = [] # full 304 vector of subapertures (1 good, 0 bad)
     for row in range(subapmap.shape[0]-1, -1, -1):
         for col in range(subapmap.shape[1]):
             # Track subapertures with special separate index that 
@@ -3820,16 +3871,23 @@ def examine_subapertures(telem_path:str, thres:float=0.3, visualize_dm:bool=True
                     # Turn bad subaperture 'off' by setting it to 0 (it is
                     # no longer considered a subaperture in union map below)
                     subapmap[row, col] = 0
+                    bad_subap_1d.append(0)
+                else:
+                    bad_subap_1d.append(1)
 
-    # Pad map with one row and one column of 0s, will be elimated during subsequent logic operations
-    temp = np.c_[subapmap, np.zeros(subapmap.shape[0])]
-    exp = np.r_[temp, [np.zeros(temp.shape[1])]]
+    print(act_to_subap)
+    bad_act_1d = np.matmul(act_to_subap, bad_subap_1d)
+    print(len(bad_act_1d))
 
-    # Find which corresponding actuators need to be masked as well
-    union = np.bitwise_and(actmap, exp.astype(int))
+    # # Pad map with one row and one column of 0s, will be elimated during subsequent logic operations
+    # temp = np.c_[subapmap, np.zeros(subapmap.shape[0])]
+    # exp = np.r_[temp, [np.zeros(temp.shape[1])]]
 
-    # Trim off 0 pads post-union
-    bad_act = union[:-1,:-1]
+    # # Find which corresponding actuators need to be masked as well
+    # union = np.bitwise_and(actmap, exp.astype(int))
+
+    # # Trim off 0 pads post-union
+    # bad_act = union[:-1,:-1]
 
     # Display map with colorbar
     if visualize_dm:
@@ -3883,6 +3941,17 @@ def examine_subapertures(telem_path:str, thres:float=0.3, visualize_dm:bool=True
                                   horizontalalignment='center', fontsize=10, color="black")
                     i += 1
 
+                i = 0
+                str_txt = [str(i) for i in range(349)]
+                while i < 349:
+                    if bad_act_1d[i] == 0:
+                        axes.text(act_x[i], act_y[i]+0.025, str_txt[i], 
+                                  horizontalalignment='center', fontsize=10, color="crimson")
+                    else:
+                        axes.text(act_x[i], act_y[i]+0.025, str_txt[i], 
+                                  horizontalalignment='center', fontsize=10, color="grey")
+                    i += 1
+
                 cbar = plt.gcf()
                 cbar_ax = cbar.axes[-1]
                 cbar_ax.tick_params(labelsize=20)
@@ -3896,7 +3965,7 @@ def examine_subapertures(telem_path:str, thres:float=0.3, visualize_dm:bool=True
                 plt.tight_layout()
                 plt.show()
 
-    return bad_subap, bad_act
+    return bad_subap, bad_act_1d
  
 def telemetry_data(telem_paths:list=None):
     """
@@ -4575,8 +4644,7 @@ KAI pipeline unchanged in its own repository.
 """
 
 def calc_strehl_on_sky(file_list, out_file, apersize=0.6, 
-                       instrument=instruments.default_inst,
-                       skysub=False):
+                       instrument=instruments.default_inst):
     """
     Calculate the Strehl, FWHM, and RMS WFE for each image in a
     list of files. The output is stored into the specified <out_file>
@@ -4661,7 +4729,7 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.6,
     # Calculate the peak flux ratio
     try:
         dl_peak_flux_ratio = calc_peak_flux_ratio_on_sky(dl_img, peak_coords_dl, 
-                                                         radius, skysub)
+                                                         radius, skysub=True)
         # For each image, get the strehl, FWHM, RMS WFE, MJD, etc. and write to an
         # output file.
         strehls = []
@@ -4672,7 +4740,7 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.6,
             strehl, fwhm, rmswfe, emp_fwhm = calc_strehl_single_on_sky(file_list[ii], radius, 
                                                                        dl_peak_flux_ratio, 
                                                                        instrument=instrument, 
-                                                                       skysub=skysub)
+                                                                       skysub=True)
             strehls.append(strehl)
             fwhms.append(fwhm)
             rmswfes.append(rmswfe)
@@ -4698,7 +4766,6 @@ def calc_strehl_on_sky(file_list, out_file, apersize=0.6,
 def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio, 
                               skysub, instrument=None):
 
-
     from kai import instruments
     if instrument is None:
         instruments.default_inst    
@@ -4709,7 +4776,7 @@ def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio,
     scale = instrument.get_plate_scale(hdr)
 
     # Position of Strehl source
-    coords = np.array([img.shape[0]/2.0, img.shape[1]/2.0])
+    coords = np.round(np.array([img.shape[0]/2.0, img.shape[1]/2.0])).astype(int)
 
     # Use Strehl source coordinates in the header, if available and recorded
     # if 'XSTREHL' in hdr:
@@ -4754,7 +4821,7 @@ def calc_strehl_single_on_sky(img_file, radius, dl_peak_flux_ratio,
         # Update the coordinates if they are reasonable. 
         if ((np.abs(g2d.x_mean_0.value - coords[0]) < fwhm_boxsize) and
             (np.abs(g2d.y_mean_0.value - coords[1]) < fwhm_boxsize)):
-            coords = np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])
+            coords = np.round(np.array([g2d.x_mean_0.value, g2d.y_mean_0.value])).astype(int)
 
     # Convert to milli-arcseconds
     fwhm *= scale * 1e3
@@ -4803,24 +4870,34 @@ def calc_peak_flux_ratio_on_sky(img, coords, radius, skysub):
 
     """
     # Determine the peak flux
-    peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
-                                             img.data.shape)
-    peak_flux = img[peak_coords]
+    # peak_coords = np.unravel_index(np.argmax(img.data, axis=None), 
+    #                                          img.data.shape)
+    peak_flux = img[coords[0], coords[1]]
+    if skysub == True:
+        print(f"DL peak flux = {peak_flux}")
+    else:
+        print(f"Peak flux = {peak_flux}")
     
     # Calculate the Strehl by first finding the peak-pixel flux / wide-aperture flux.
     # Then normalize by the same thing from the reference DL image. 
     aper_sum = np.sum(img)
 
     if skysub:
-        sky_rad_inn = radius + 20
-        sky_rad_out = radius + 30
+        sky_rad_inn = 300 # radius + 20
+        sky_rad_out = 400 # radius + 30
         sky_aper = CircularAnnulus(coords, sky_rad_inn, sky_rad_out)
         sky_aper_out = aperture_photometry(img, sky_aper)
         sky_aper_sum = sky_aper_out['aperture_sum'][0]
 
-        aper_sum -= sky_aper_sum
+        sky_avg = sky_aper_sum/sky_aper.area
+        img_sub = img - sky_avg
 
-    # Calculate the peak pixel flux / wide-aperture flux
-    peak_flux_ratio = peak_flux / aper_sum
+        # Normalize by integral of entire PSF (as opposed to peak pixel value)
+        img_norm = img_sub/np.sum(img_sub)
+        peak_flux_ratio = img_sub[coords[0], coords[1]] / np.sum(img_sub)
+    else: 
+        # Calculate the peak pixel flux / wide-aperture flux in case of no skysub
+        print(f"aper sum {aper_sum}, peak flux {peak_flux}")
+        peak_flux_ratio = peak_flux / aper_sum
     
     return peak_flux_ratio
