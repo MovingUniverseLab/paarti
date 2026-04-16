@@ -17,11 +17,13 @@ Installation
 To use this package, open a terminal and navigate to the desired path. Clone the repository:
 
 .. code-block:: Python
+
     git clone https://github.com/jluastro/paarti.git
     
 and add the folder to your Python path by adding this line to your ~/.bash_profile or ~/.zshenv:
 
 .. code-block:: Python
+    
     export PYTHONPATH="${PYTHONPATH}:/path_to_folder/paarti"
 
 Developers
