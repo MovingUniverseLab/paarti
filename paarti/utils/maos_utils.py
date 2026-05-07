@@ -8,7 +8,7 @@ from astropy.modeling import models, fitting
 import astropy.units as u
 import astropy
 from paarti.psf_metrics import metrics
-from photutils import CircularAnnulus, CircularAperture, aperture_photometry
+from photutils.aperture import CircularAnnulus, CircularAperture, aperture_photometry
 import glob
 from scipy import stats, signal
 import scipy, scipy.misc, scipy.ndimage
@@ -90,7 +90,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
     Optional Inputs:
     ----------------
     wfs_int_time   : float
-        Integration time of the WFS.
+        Integration time of the WFS in seconds
 
     Outputs:
     ------------
@@ -150,7 +150,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         ps = 0.148 # previously 1.5
         
         # KAON 1303 has LBWFS readnoise as 5.82 e-, but KAON 245 has readnoise 3 e/pix
-        sigma_e = 7.96 # for 2017 LBWFS replacement
+        sigma_e = 7.96 # for 2017 LBWFS replacement KAON 1303 pg 22
         
         # from KAON 1303 Table 16 - this table includes spot size measurements
         # from sacnning an AO single mode fiber source across the CCD-39 camera pixels
@@ -172,7 +172,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         # wavelength = 0.589e-6
         
         # side length of square subaperture (m)
-        side = 0.563
+        side = 0.563 
         
         # KAON 479 has CCD-39 3.0 arcsec square pixels 
         ps = 3.0
@@ -194,22 +194,22 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         # wavelength = 0.589e-6
         
         # side length of square subaperture (m)
-        side = 0.563
+        side = 0.563 # ~D/20 subapertures = 10.949/20 = 0.54745
         
         # from Carlos' config file
-        ps = 3.0
-        sigma_e = 0.5
+        ps = 1.5 # Noah Stiegler, 5/5/26: updated to 1.5''/px from  3.0
+        sigma_e = 0.3 # e-/pixel read noise validated by telemetry ~0.3 e-/pix fwhm in the background
         
-        # from KAON 1303 Table 20
-        theta_beta = 1.5 * ( math.pi/180.0 ) / ( 60.0*60.0 )
+        # from KAON 1303 Table 20 -> FWHM in LGS 51 +/- 8 mas, LGS Magnitude 10.2 +/- 0.7, LGS FWHM 1.9 +/- 0.4 arcsec, LGS Small FWHM 1.5 +/- 0.3 arcsec
+        theta_beta = 1.5 * ( math.pi/180.0 ) / ( 60.0*60.0 ) # 1.5 arcsec -> radians
         
         # KAON 1303 Table 8 states 0.36, but Np=1000 is already
         # measured on the detector. Modified to account for QE=0.88 
         # on the WFS detector at R-band from error budget spreadsheet
-        throughput = 0.36 * 0.88
+        throughput = 0.36 * 0.88 # QE ratio from old to new LGS WFS is 0.88
         
         # quadcell
-        pix_per_ap = 4
+        pix_per_ap = 4 * 4 # <- 4x4
     elif wfs == 'LGS-HODM-HOWFS':
         # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
         band = "R"
@@ -219,7 +219,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         sigma_e = 0.1
         theta_beta = 1.5 * ( math.pi/180.0 ) / ( 60.0*60.0 )
         throughput = 0.36 * 0.88
-        pix_per_ap = 4
+        pix_per_ap = 4 * 4 # <- 4x4
     elif wfs == 'TRICK-H':
         # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
         band = "H"
@@ -227,7 +227,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
 
         # side length of square subaperture (m)
         # turn into square aperture of same area as primary
-        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) )
+        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) ) # 9.571275453301643
 
         # From Carlos' config file
         ps = 0.06
@@ -241,17 +241,17 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         throughput = 0.56
         # Modify to add 4 lenses and a filter inside TRICK
         # TODO: Need to put in detector QE
-        throughput *= 0.96**4 * 0.95
+        throughput *= 0.96**4 * 0.95 # 0.45 total
         
         # ROI reduces from 16x16 to 2x2 as residual is reduced
-        pix_per_ap = 4
+        pix_per_ap = 8 * 8 # <- 8x8
     elif wfs == 'TRICK-K':
         # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
         band = "K"
         # wavelength = 2.19e-6
 
         # side length of square subaperture (m) 
-        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) )
+        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) ) # 9.57
         
         # From Carlos' config file
         ps = 0.04
@@ -265,10 +265,10 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         throughput = 0.62
         # Modify to add 4 lenses and a filter inside TRICK
         # TODO: Need to put in detector QE
-        throughput *= 0.96**4 * 0.95
+        throughput *= 0.96**4 * 0.95 # 0.50 total
 
         # ROI decreases from 16x16 to 2x2 as residual reduces
-        pix_per_ap = 4
+        pix_per_ap = 8 * 8 # <- 8x8
     elif wfs == 'STRAP':
         band = "R"
         band_wvl = 0.641e-6
@@ -300,7 +300,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         throughput = 0.32 # * 0.50
 
         # ROI
-        pix_per_ap = 4
+        pix_per_ap = 2 * 2 # <- 2x2
 
     SNR, sigma_theta, Np, Nb = keck_nea_photons_any_config(wfs,
                                                            side,
@@ -348,7 +348,7 @@ def keck_nea_photons_any_config(wfs:str, side:float, throughput:float, ps:float,
         Readnoise in electrons
 
     pix_per_ap  : int
-        Number of pixels per sub-aperture
+        Total number of pixels per sub-aperture (so a 2x2 quad cell would be 4 pixels)
 
     time        : float
         Integration time of the WFS in unit of seconds
