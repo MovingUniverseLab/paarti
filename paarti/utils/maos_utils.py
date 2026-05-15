@@ -70,7 +70,7 @@ def seeing_limit_spot_size(wvl:u.m, r0:u.m) -> u.arcsec:
     theta = (2.013*1.0e5) * (wvl/r0)
     return theta
 
-def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
+def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0, lbwfs_fwhm=None):
     """
     Calculate the number of photons, number of background photons,
     and noise equivalent angle for a natural guide star.
@@ -158,7 +158,12 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0):
         # B. DiGia 12/13/2024 - this spot size is intrinsic to the WFS and should be
         # convolved with the seeing-limited disk for the full WFS spot size
         theta_r0 = seeing_limit_spot_size(band_wvl, r0)
-        theta_beta = np.sqrt(theta_r0**2.0 + 0.5**2.0)
+        if lbwfs_fwhm is not None:
+            # If an LBWFS FWHM is provided, use that instead of the default 0.5''
+            theta_beta = np.sqrt(theta_r0**2.0 + (lbwfs_fwhm/2.355)**2.0)
+        else:
+            theta_beta = np.sqrt(theta_r0**2.0 + 0.5**2.0)
+
         # Convert spot size to radians
         theta_beta *= ( math.pi/180.0 ) / ( 60.0*60.0 )
         
