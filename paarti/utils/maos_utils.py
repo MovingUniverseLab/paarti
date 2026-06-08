@@ -120,11 +120,11 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0, l
     """
     # LGSWFS-OCAM2K  : KAPA and KAPA+HODM simulation setups
     # LGS-HODM-HOWFS : KAPA+HODM+HOWFS
-    wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 
-                'TRICK-H', 'TRICK-K', 'STRAP']
+    # wfs_list = ['LBWFS', 'LGSWFS', 'LGSWFS-OCAM2K', 'LGS-HODM-HOWFS', 
+    #             'TRICK-H', 'TRICK-K', 'STRAP']
 
-    if wfs not in wfs_list:
-        raise RuntimeError("keck_nea_photons: Invalid WFS.")
+    # if wfs not in wfs_list:
+    #     raise RuntimeError("keck_nea_photons: Invalid WFS.")
     
     # Keck telescope diameter (m)
     D = 10.949
@@ -249,7 +249,7 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0, l
         throughput *= 0.96**4 * 0.95 # 0.45 total
         
         # ROI reduces from 16x16 to 2x2 as residual is reduced
-        pix_per_ap = 8 * 8 # <- 8x8
+        pix_per_ap = 4 * 4 # <- 8x8
     elif wfs == 'TRICK-K':
         # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
         band = "K"
@@ -273,7 +273,106 @@ def keck_nea_photons(m:float, wfs:str, r0:float, wfs_int_time:float=1.0/800.0, l
         throughput *= 0.96**4 * 0.95 # 0.50 total
 
         # ROI decreases from 16x16 to 2x2 as residual reduces
-        pix_per_ap = 8 * 8 # <- 8x8
+        pix_per_ap = 4 * 4 # <- 8x8 or 4x4
+    elif wfs == 'TRICK-H_5rne':
+        # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
+        band = "H"
+        # wavelength = 1.63e-6
+
+        # side length of square subaperture (m)
+        # turn into square aperture of same area as primary
+        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) ) # 9.571275453301643
+
+        # From Carlos' config file
+        ps = 0.06
+        # Changed to RNE of 5 for sims of TRICK vs. TREAT on 6/8/26
+        sigma_e = 5
+
+        # Using OSIRIS FWHM from KAON 1303 Table 13 (as suggested by Peter)
+        theta_beta = 0.055 * ( math.pi/180.0 ) / ( 60.0*60.0 )
+
+        # from KAON 1303 Table 8
+        throughput = 0.56
+        # Modify to add 4 lenses and a filter inside TRICK
+        # TODO: Need to put in detector QE
+        throughput *= 0.96**4 * 0.95 # 0.45 total
+        
+        # ROI reduces from 16x16 to 2x2 as residual is reduced
+        pix_per_ap = 4 * 4 # <- 8x8
+    elif wfs == 'TRICK-K_5rne':
+        # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
+        band = "K"
+        # wavelength = 2.19e-6
+
+        # side length of square subaperture (m) 
+        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) ) # 9.57
+        
+        # From Carlos' config file
+        ps = 0.04
+        # Changed to RNE of 5 for sims of TRICK vs. TREAT on 6/8/26
+        sigma_e = 5
+        
+        # Scaling the K band 0.055 by 2.19/1.63 (wavelength ratio)        
+        theta_beta = 0.074 * ( math.pi/180.0 ) / ( 60.0*60.0 )
+
+        # from KAON 1303 Table 8
+        throughput = 0.62
+        # Modify to add 4 lenses and a filter inside TRICK
+        # TODO: Need to put in detector QE
+        throughput *= 0.96**4 * 0.95 # 0.50 total
+
+        # ROI decreases from 16x16 to 2x2 as residual reduces
+        pix_per_ap = 4 * 4 # <- 8x8 or 4x4
+    elif wfs == "TREAT-K":
+        # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
+        band = "K"
+        # wavelength = 2.19e-6
+
+        # side length of square subaperture (m) 
+        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) ) # 9.57
+        
+        # From Carlos' config file
+        ps = 0.04 * (24 / 18)
+        # Modified to get SNR=5 at H=15
+        sigma_e = 0.5
+        
+        # Scaling the K band 0.055 by 2.19/1.63 (wavelength ratio)        
+        theta_beta = 0.074 * ( math.pi/180.0 ) / ( 60.0*60.0 )
+
+        # from KAON 1303 Table 8
+        throughput = 0.62
+        # Modify to add 4 lenses and a filter inside TRICK
+        # TODO: Need to put in detector QE
+        throughput *= 0.96**4 * 0.95 # 0.50 total
+
+        # ROI decreases from 16x16 to 2x2 as residual reduces
+        pix_per_ap = 4 * 4 # <- 8x8 or 4x4
+    elif wfs == "TREAT-H":
+        # NEED TO ADJUST SPOT SIZE CALCULATION WHEN THIS IS USED
+        band = "H"
+        # wavelength = 1.63e-6
+
+        # side length of square subaperture (m)
+        # turn into square aperture of same area as primary
+        side = math.sqrt( math.pi * ( (D  / 2.0)**2 - (Ds / 2.0)**2 ) ) # 9.571275453301643
+
+        # From Carlos' config file
+        ps = 0.06 * (24 / 18)   
+        # Modified to get SNR=5 at H=15
+        sigma_e = .5
+
+        # Using OSIRIS FWHM from KAON 1303 Table 13 (as suggested by Peter)
+        theta_beta = 0.055 * ( math.pi/180.0 ) / ( 60.0*60.0 )
+
+        # from KAON 1303 Table 8
+        throughput = 0.56
+        # Modify to add 4 lenses and a filter inside TRICK
+        # TODO: Need to put in detector QE
+        throughput *= 0.96**4 * 0.95 # 0.45 total
+        
+        # ROI reduces from 16x16 to 2x2 as residual is reduced
+        pix_per_ap = 4 * 4 # <- 8x8
+    
     elif wfs == 'STRAP':
         band = "R"
         band_wvl = 0.641e-6
