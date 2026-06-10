@@ -915,8 +915,8 @@ def get_psf_metrics_over_field(directory:str='./', oversamp:int=3,
 
     psf_all_wvls.close()
 
-    xpos = np.zeros((npos, nwvl), dtype=int)
-    ypos = np.zeros((npos, nwvl), dtype=int)
+    xpos = np.zeros((npos, nwvl), dtype=float)
+    ypos = np.zeros((npos, nwvl), dtype=float)
     wavelengths = np.zeros((npos, nwvl), dtype=float)
     strehl_values = np.zeros((npos, nwvl), dtype=float)
     fwhm_gaus_values = np.zeros((npos, nwvl), dtype=float)
@@ -928,10 +928,11 @@ def get_psf_metrics_over_field(directory:str='./', oversamp:int=3,
         psf_all_wvls = fits.open(fits_files[xx])
 
         file_name = fits_files[xx].split('/')[-1]
-        file_root = file_name.split('.')[0]
+        # file_root = file_name.split('.')[0]
+        file_root = str(Path(file_name).stem)
         tmp = file_root.split('_')
-        tmpx = int(tmp[2][1:])
-        tmpy = int(tmp[3][1:])
+        tmpx = float(tmp[2][1:])
+        tmpy = float(tmp[3][1:])
         print('xx = ', tmpx, 'yy = ', tmpy)
 
         for pp in range(nwvl):
