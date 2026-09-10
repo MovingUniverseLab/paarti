@@ -2242,9 +2242,11 @@ def estimate_on_sky_conditions(file:str, saveto:str, verbose:bool=False, plot:bo
             expstop_sec_old = float(expstop[6:8])
             expstop_sec_new = expstop_sec_old + hdr['TRUITIME']
             expstop = expstop[0:6] + f'{expstop_sec_new:.2f}'
-        else: # NIRC2
+        elif hdr["CURRINST"] == 'NIRC2': # NIRC2
             expstart = hdr["EXPSTART"]
             expstop = hdr["EXPSTOP"]
+        else:
+            raise NotImplementedError(f"Instrument '{hdr['CURRINST']}' is not yet supported.")
             
         expstart_hr = float(expstart[:2])
         expstart_min = float(expstart[3:5])
